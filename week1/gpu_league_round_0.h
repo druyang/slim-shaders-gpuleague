@@ -30,7 +30,8 @@ namespace name
 
 int Int_Vector_Sum(const int* array,const int size)
 {
-
+	
+	// Standard 4x4 loop unrolling with 4 accumulators
 	int acc0 = 0;
 	int acc1 = 0;
 	int acc2 = 0;
@@ -65,6 +66,9 @@ double Double_Vector_Sum(const double* array,const int size)
 	int i;
 	int limit = size - 1;
 	
+
+	// Standard 6x1a loop unrolling using Reassociation Transformation as described in the CSAPP text
+
 	for(i = 0; i < limit ; i += 6){
 		sum = sum + (array[i] + array[i+1] + array[i+2] + array[i+3] + array[i+4] + array[i+5]);
 	}
