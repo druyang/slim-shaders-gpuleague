@@ -68,7 +68,6 @@ double Double_Vector_Sum(const double* array,const int size)
 	
 
 	// Standard 6x1a loop unrolling using Reassociation Transformation as described in the CSAPP text
-
 	for(i = 0; i < limit ; i += 6){
 		sum = sum + (array[i] + array[i+1] + array[i+2] + array[i+3] + array[i+4] + array[i+5]);
 	}
