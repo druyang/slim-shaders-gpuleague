@@ -1,0 +1,18 @@
+{
+    "editor.fontFamily": "Fira Code",
+    "editor.fontSize": 12,
+    "debug.console.fontSize": 12,
+    "terminal.integrated.fontSize": 12,
+    "sqltools.connections": [
+        {
+            "connectionTimeout": 600,
+            "database": "nyc_data",
+            "dialect": "MySQL",
+            "name": "local_db",
+            "password": "uQQ4-HuR88",
+            "port": 3306,
+            "server": "localhost",
+            "username": "root"
+        }
+    ]
+}
