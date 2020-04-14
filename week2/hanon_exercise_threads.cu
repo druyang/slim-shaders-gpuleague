@@ -64,6 +64,10 @@ __global__ void Hanon_Exercise_3(int* array)
 __global__ void Hanon_Exercise_4(int* array)
 {
 	/*TODO: Your implementation*/
+	// block 0-1
+	// thread 0-3
+	array[blockIdx.x] = 
+
 }
 
 ////Kernel dimension: <<<dim3(2,2,1),dim3(4,4,1)>>>
