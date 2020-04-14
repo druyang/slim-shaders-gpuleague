@@ -16,8 +16,8 @@ using namespace std;
 namespace name
 {
 	std::string team="Slim_Shaders";
-	std::string author_1="Andrw Yang";
-	std::string author_2="Matthew Kenney";
+	std::string author_1="Andrw_Yang";
+	std::string author_2="Matthew_Kenney";
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -66,7 +66,10 @@ __global__ void Hanon_Exercise_4(int* array)
 	/*TODO: Your implementation*/
 	// block 0-1
 	// thread 0-3
-	array[blockIdx.x] = 
+	int block_num = blockIdx.x * 2 + blockIdx.y;
+	int thread_num = threadIdx.x * 4 + threadIdx.y;
+	int i = block_num * 16 + thread_num;
+	array[i] =  i;
 
 }
 
@@ -75,6 +78,10 @@ __global__ void Hanon_Exercise_4(int* array)
 __global__ void Hanon_Exercise_5(int* array)
 {
 	/*TODO: Your implementation*/
+	int block_num = blockIdx.x * 2 + blockIdx.y;
+	int thread_num = threadIdx.x * 4 + threadIdx.y;
+	int i = block_num * 16 + thread_num;
+	array[i] =  i%2;
 }
 
 ////Kernel dimension: <<<8,dim3(2,4)>>>
@@ -82,6 +89,9 @@ __global__ void Hanon_Exercise_5(int* array)
 __global__ void Hanon_Exercise_6(int* array)
 {
 	/*TODO: Your implementation*/
+	int blockId = blockIdx.x;
+	int threadId = blockId * (blockDim.x * blockDim.y * blockDim.z) + (threadIdx.y * blockDim.x) + threadIdx.x;
+	array[threadId] = threadId/4 + 1; 
 }
 
 ////Kernel dimension: <<<8,dim3(2,2,2)>>>
@@ -89,6 +99,9 @@ __global__ void Hanon_Exercise_6(int* array)
 __global__ void Hanon_Exercise_7(int* array)
 {
 	/*TODO: Your implementation*/
+	int blockId = blockIdx.x;
+	int threadId = blockId * (blockDim.x * blockDim.y * blockDim.z) + (threadIdx.x * blockDim.y * blockDim.z) + (threadIdx.y * blockDim.z) + threadIdx.z;
+	array[threadId] = threadId % 8 + 1; 
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -111,6 +124,7 @@ __global__ void Hanon_Exercise_8()
 {
 	/*TODO: Your implementation*/
 	////Hint: assign values to b_on_dev, e.g., b_on_dev[threadIdx.x][threadIdx.y]=1
+	b_on_dev[threadIdx.x/8][threadIdx.x%8]= threadIdx.x;
 }
 
 ////Kernel dimension: <<<1,dim3(8,8)>>>
@@ -118,6 +132,8 @@ __global__ void Hanon_Exercise_8()
 __global__ void Hanon_Exercise_9()
 {
 	/*TODO: Your implementation*/
+	int threadId = blockIdx.x * (blockDim.x * blockDim.y * blockDim.z) + (threadIdx.y * blockDim.x) + threadIdx.x;
+	b_on_dev[threadIdx.y][threadIdx.x]= threadId;
 }
 
 ////Kernel dimension: <<<1,dim3(8,8)>>>
@@ -133,6 +149,8 @@ __global__ void Hanon_Exercise_9()
 __global__ void Hanon_Exercise_10()
 {
 	/*TODO: Your implementation*/
+	int threadId = blockIdx.x * (blockDim.x * blockDim.y * blockDim.z) + (threadIdx.y * blockDim.x) + threadIdx.x;
+	b_on_dev[threadIdx.x][threadIdx.y]= threadId;
 }
 
 ////Kernel dimension: <<<dim3(2,2),dim3(4,4)>>>
@@ -148,6 +166,11 @@ __global__ void Hanon_Exercise_10()
 __global__ void Hanon_Exercise_11()
 {
 	/*TODO: Your implementation*/
+	int j= blockIdx.y * blockDim.y + threadIdx.y;
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	int thread_num = threadIdx.x * blockDim.x + threadIdx.y;
+
+	b_on_dev[i][j]= thread_num;
 }
 
 
