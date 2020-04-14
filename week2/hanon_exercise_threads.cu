@@ -16,8 +16,8 @@ using namespace std;
 namespace name
 {
 	std::string team="Slim_Shaders";
-	std::string author_1="Andrw Yang";
-	std::string author_2="Matthew Kenney";
+	std::string author_1="Andrw_Yang";
+	std::string author_2="Matthew_Kenney";
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -66,7 +66,10 @@ __global__ void Hanon_Exercise_4(int* array)
 	/*TODO: Your implementation*/
 	// block 0-1
 	// thread 0-3
-	array[blockIdx.x] = 
+	int block_num = blockIdx.x * 2 + blockIdx.y;
+	int thread_num = threadIdx.x * 4 + threadIdx.y;
+	int i = block_num * 16 + thread_num;
+	array[i] =  i;
 
 }
 
