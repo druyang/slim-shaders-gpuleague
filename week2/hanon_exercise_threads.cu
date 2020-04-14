@@ -15,10 +15,9 @@ using namespace std;
 
 namespace name
 {
-	std::string team="Team_X";
-	std::string author_1="Name_1";
-	std::string author_2="Name_2";
-	std::string author_3="Name_3";	////optional
+	std::string team="Slim_Shaders";
+	std::string author_1="Andrw Yang";
+	std::string author_2="Matthew Kenney";
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -38,6 +37,7 @@ __global__ void Hanon_Exercise_0(int* array)
 __global__ void Hanon_Exercise_1(int* array)
 {
 	/*TODO: Your implementation*/
+	array[threadIdx.x]=threadIdx.x%2;
 }
 
 ////Kernel dimension: <<<1,64>>>
@@ -45,6 +45,7 @@ __global__ void Hanon_Exercise_1(int* array)
 __global__ void Hanon_Exercise_2(int* array)
 {
 	/*TODO: Your implementation*/
+	array[threadIdx.x]=1+threadIdx.x%4;
 }
 
 ////Kernel dimension: <<<1,64>>>
@@ -52,6 +53,7 @@ __global__ void Hanon_Exercise_2(int* array)
 __global__ void Hanon_Exercise_3(int* array)
 {
 	/*TODO: Your implementation*/
+	array[threadIdx.x]=threadIdx.x%5;
 }
 
 //////////////////////////////////////////////////////////////////////////
