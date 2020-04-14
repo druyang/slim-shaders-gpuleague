@@ -168,7 +168,7 @@ __global__ void Hanon_Exercise_11()
 	/*TODO: Your implementation*/
 	int j= blockIdx.y * blockDim.y + threadIdx.y;
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	int thread_num = threadIdx.x * blockDim.x + threadIdx.y;
+	int thread_num = threadIdx.x * blockDim.y + threadIdx.y;
 
 	b_on_dev[i][j]= thread_num;
 }

@@ -9,17 +9,11 @@
 #include <fstream>
 using namespace std;
 
-//////////////////////////////////////////////////////////////////////////
-////TODO 0: Please replace the following strings with your team name and author names
-////Note: Please do not use space in the string, use "_" instead
-//////////////////////////////////////////////////////////////////////////
-
 namespace name
 {
-	std::string team="Team_X";
-	std::string author_1="Name_1";
-	std::string author_2="Name_2";
-	std::string author_3="Name_3";	////optional
+	std::string team="Slim_Shaders";
+	std::string author_1="Andrw_Yang";
+	std::string author_2="Matthew_Kenney";
 };
 
 ofstream out;
@@ -42,13 +36,18 @@ __device__ const int b_dev[8]={101,102,103,104,105,106,107,108};	////b_dev is an
 ////4) free the array on device
 
 /*TODO: Your kernel function starts*/
+__global__ void Hanon_kernel(int* to_increment){
+	array_id = blockDim.x * blockIdx.x + threadIdx.x; 
+	to_increment[array_id] = to_increment[array_id] + 1; 
+}
 /*TODO: Your kernel function ends*/
 
 __host__ void Hanon_Exercise_12()
 {
 	int result_host[8]={0};
-	
 	/*TODO: Your implementation starts*/
+
+
 	/*TODO: Your implementation ends*/
 
 	cout<<"Hanon exercise 12:\n";
