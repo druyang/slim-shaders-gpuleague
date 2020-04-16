@@ -24,6 +24,7 @@ namespace name
 ////Hanon finger exercise for threads, Section 1, 1D array with 1D threads
 ////Learn how to use the built-in variables threadIdx, blockIdx, gridDim, and blockDim
 
+
 ////Exercise 1 is a sample kernel function, you don't need to implement this function
 ////Kernel dimension: <<<1,64>>>
 ////Expected output: 0,1,2,3,4,...,61,62,63
@@ -66,11 +67,12 @@ __global__ void Hanon_Exercise_4(int* array)
 	/*TODO: Your implementation*/
 	// block 0-1
 	// thread 0-3
-	int block_num = blockIdx.x * 2 + blockIdx.y;
-	int thread_num = threadIdx.x * 4 + threadIdx.y;
-	int i = block_num * 16 + thread_num;
-	array[i] =  i;
+	int block_num = blockIdx.y * gridDim.x + blockIdx.x; // block_num = blockIdx.y * 2 + blockIdx.x
+	int thread_num = threadIdx.y * blockDim.x + threadIdx.x; // thread_num = threadIdx.y * 4 + threadIdx.x`
+	int threads_per_block = blockDim.x * blockDim.y * blockDim.z;
 
+	int thread_id = block_num * threads_per_block + thread_num;
+	array[thread_id] =  thread_id;
 }
 
 ////Kernel dimension: <<<dim3(2,2,1),dim3(4,4,1)>>>
@@ -78,10 +80,12 @@ __global__ void Hanon_Exercise_4(int* array)
 __global__ void Hanon_Exercise_5(int* array)
 {
 	/*TODO: Your implementation*/
-	int block_num = blockIdx.x * 2 + blockIdx.y;
-	int thread_num = threadIdx.x * 4 + threadIdx.y;
-	int i = block_num * 16 + thread_num;
-	array[i] =  i%2;
+	int block_num = blockIdx.y * gridDim.x + blockIdx.x; // block_num = blockIdx.y * 2 + blockIdx.x
+	int thread_num = threadIdx.y * blockDim.x + threadIdx.x; // thread_num = threadIdx.y * 4 + threadIdx.x`
+	int threads_per_block = blockDim.x * blockDim.y * blockDim.z;
+
+	int thread_id = block_num * threads_per_block + thread_num;
+	array[thread_id] =  thread_id % 2;
 }
 
 ////Kernel dimension: <<<8,dim3(2,4)>>>
@@ -89,9 +93,12 @@ __global__ void Hanon_Exercise_5(int* array)
 __global__ void Hanon_Exercise_6(int* array)
 {
 	/*TODO: Your implementation*/
-	int blockId = blockIdx.x;
-	int threadId = blockId * (blockDim.x * blockDim.y * blockDim.z) + (threadIdx.y * blockDim.x) + threadIdx.x;
-	array[threadId] = threadId/4 + 1; 
+	int block_num = blockIdx.x;
+	int thread_num = threadIdx.y * blockDim.x + threadIdx.x;
+	int threads_per_block = blockDim.x * blockDim.y * blockDim.z;
+
+	int thread_id = block_num * threads_per_block + thread_num;
+	array[thread_id] = thread_id / 4 + 1; 
 }
 
 ////Kernel dimension: <<<8,dim3(2,2,2)>>>
@@ -99,9 +106,12 @@ __global__ void Hanon_Exercise_6(int* array)
 __global__ void Hanon_Exercise_7(int* array)
 {
 	/*TODO: Your implementation*/
-	int blockId = blockIdx.x;
-	int threadId = blockId * (blockDim.x * blockDim.y * blockDim.z) + (threadIdx.x * blockDim.y * blockDim.z) + (threadIdx.y * blockDim.z) + threadIdx.z;
-	array[threadId] = threadId % 8 + 1; 
+	int block_num = blockIdx.x;
+	int thread_num = (threadIdx.z * blockDim.y * blockDim.x) + (threadIdx.y * blockDim.x) + threadIdx.x;
+	int threads_per_block = blockDim.x * blockDim.y * blockDim.z;
+
+	int thread_id = block_num * threads_per_block + thread_num;
+	array[thread_id] = thread_id % 8 + 1; 
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -132,8 +142,12 @@ __global__ void Hanon_Exercise_8()
 __global__ void Hanon_Exercise_9()
 {
 	/*TODO: Your implementation*/
-	int threadId = blockIdx.x * (blockDim.x * blockDim.y * blockDim.z) + (threadIdx.y * blockDim.x) + threadIdx.x;
-	b_on_dev[threadIdx.y][threadIdx.x]= threadId;
+	int block_num = blockIdx.x;
+	int thread_num = (threadIdx.y * blockDim.x) + threadIdx.x;
+	int threads_per_block = blockDim.x * blockDim.y * blockDim.z;
+
+	int thread_id = block_num * threads_per_block + thread_num;
+	b_on_dev[threadIdx.y][threadIdx.x]= thread_id;
 }
 
 ////Kernel dimension: <<<1,dim3(8,8)>>>
@@ -149,8 +163,12 @@ __global__ void Hanon_Exercise_9()
 __global__ void Hanon_Exercise_10()
 {
 	/*TODO: Your implementation*/
-	int threadId = blockIdx.x * (blockDim.x * blockDim.y * blockDim.z) + (threadIdx.y * blockDim.x) + threadIdx.x;
-	b_on_dev[threadIdx.x][threadIdx.y]= threadId;
+	int block_num = blockIdx.x;
+	int thread_num = (threadIdx.y * blockDim.x) + threadIdx.x;
+	int threads_per_block = blockDim.x * blockDim.y * blockDim.z;
+
+	int thread_id = block_num * threads_per_block + thread_num;
+	b_on_dev[threadIdx.x][threadIdx.y]= thread_id;
 }
 
 ////Kernel dimension: <<<dim3(2,2),dim3(4,4)>>>
