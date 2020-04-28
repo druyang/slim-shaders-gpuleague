@@ -145,39 +145,24 @@ __global__ void Matrix_Multiplication_AB_Kernel_Your_Version(const float* Ae,con
 {
 	/*Your implementation starts*/
 	const int blockSize = 16;
-	int tileRow = blockIdx.y;
-	int tileCol = blockIdx.x;
+	int tileRow = blockIdx.x;
+	int tileCol = blockIdx.y;
 
-	int row = threadIdx.y;
-	int col = threadIdx.x;
+	int row = threadIdx.x;
+	int col = threadIdx.y;
 
-	// Each thread block computes one sub-matrix Csub of C
-	// Bn = Width of B = Width of C
-	// Code from GetSubMatrix Function: 
-	// Asub.elements = &A.elements[A.stride * BLOCK_SIZE * row + BLOCK_SIZE * col];
-	float* C_tile = &Ce[Bm * blockSize * tileRow + blockSize * tileCol];
+	float* C_tile = &Ce[Bn * blockSize * tileRow + blockSize * tileCol];
 
-
-	// Each thread computes one element of Csub
-	// by accumulating results into Cvalue
 	float Cvalue = 0;
-	// Thread row and column within Csub
 
-	// Loop over all the sub-matrices of A and B that are
-	// required to compute Csub
-	// Multiply each pair of sub-matrices together
-	// and accumulate the results
 	for (int m = 0; m < (An / blockSize); ++m) {
 		 
 		const float* A_tile = &Ae[An * tileRow * blockSize + m * blockSize];
 		const float* B_tile = &Be[Bn * blockSize * m + tileCol *blockSize];
 
-		// Shared memory used to store Asub and Bsub respectively
 		__shared__ float A_s[blockSize][blockSize];
 		__shared__ float B_s[blockSize][blockSize];
 
-		// Load Asub and Bsub from device memory to shared memory
-		// Each thread loads one element of each sub-matrix
 		A_s[row][col] = A_tile[row * An + col];
 		B_s[row][col] = B_tile[row * Bn + col];
 		__syncthreads();
@@ -189,7 +174,6 @@ __global__ void Matrix_Multiplication_AB_Kernel_Your_Version(const float* Ae,con
 		}
 		__syncthreads();
 	}
-	// Ce[row][col] = Cvalue;
 	C_tile[row * Bn + col] = Cvalue;
 
 }
@@ -216,7 +200,57 @@ __global__ void Matrix_Multiplication_ATBA_Kernel_Poorman(const float* Ae,const 
 
 __global__ void Matrix_Multiplication_ATBA_Kernel_Your_Version(const float* Ae,const float* Be,float* Ce,const int Am,const int An)
 {
+
 	/*Your implementation starts*/
+	const int blockSize = 16;
+	int tileRow = blockIdx.x;
+	int tileCol = blockIdx.y;
+
+	int row = threadIdx.x;
+	int col = threadIdx.y;
+
+	float* C_tile = &Ce[Am * blockSize * tileRow + blockSize * tileCol];
+
+	float Cvalue = 0;
+
+
+	for (int m = 0; m < (An / blockSize); ++m) {
+		 
+		const float* A_tile = &Ae[An * tileRow * blockSize + m * blockSize];
+		const float* A_tile_transpose = &Ae[Am * blockSize * m + tileCol *blockSize];
+		const float* B_tile = &Be[Am * blockSize * m + tileCol *blockSize];
+
+		__shared__ float A_s[blockSize][blockSize];
+		__shared__ float B_s[blockSize][blockSize];
+		__shared__ float A_s_tranpose[blockSize][blockSize];
+
+
+		A_s[row][col] = A_tile[row * An + col];
+		A_s_tranpose[row][col] = A_tile_transpose[col * Am + row];
+		B_s[row][col] = B_tile[row * Am + col];
+		__syncthreads();
+
+		// Former setup:
+		// for(int e=0;e<An;e++)
+		// val += Ae[i*An+e]*Be[e*Bn+j];
+		//
+		// Cvalue += A_s[row][e] * B_s[e][col];
+
+
+		// for(int l=0;l<Am;l++)
+		// for(int k=0;k<Am;k++)
+			// val+=Ae[l*An+i]*Be[l*Am+k]*Ae[k*An+j];
+
+		for (int l = 0; l < blockSize; ++l)
+		{
+			for (int k = 0; k < blockSize; ++k) 
+			{
+				Cvalue += A_s_tranpose[row][l] * B_s[l][k] * A_s[k][col];
+			}
+		}
+		__syncthreads();
+	}
+	C_tile[row * Am + col] = Cvalue;
 	/*Your implementation ends*/
 }
 
@@ -228,6 +262,14 @@ __global__ void Matrix_Multiplication_ATBA_Kernel_Your_Version(const float* Ae,c
 
 ////Please write your own kernel function here, and call it in the function Test_F_Norm_On_GPU to test its correctness and performance
 /*Your implementation starts*/
+
+__global__ void Test_F_Norm_On_GPU(const float *A, int An, int Am, int *norm)
+{
+	// extern __shared__ float shared_data[]; 
+	// unsigned int 
+	
+}
+
 /*Your implementation ends*/
 
 
@@ -312,14 +354,14 @@ __host__ void Test_Matrix_Multiplication_ATBA_On_GPU(const Matrix& A,const Matri
 	const int block_num_y=C.n/block_size;
 
 	////TODO: this is a sample implementation. Comment it out to test your own code.
-	Matrix_Multiplication_ATBA_Kernel_Poorman<<<dim3(block_num_x,block_num_y),dim3(block_size,block_size)>>>
-		(A_on_dev.elements_on_dev,B_on_dev.elements_on_dev,C_on_dev.elements_on_dev,A_on_dev.m,A_on_dev.n);
+	// Matrix_Multiplication_ATBA_Kernel_Poorman<<<dim3(block_num_x,block_num_y),dim3(block_size,block_size)>>>
+	// 	(A_on_dev.elements_on_dev,B_on_dev.elements_on_dev,C_on_dev.elements_on_dev,A_on_dev.m,A_on_dev.n);
 
 	////TODO: Uncomment this to test your own implementation.
 	////NOTICE: You do not have to use the block_size I specified here. You may customize the size of your grid and blocks for better performance.
 	
-	//Matrix_Multiplication_ATBA_Kernel_Your_Version<<<dim3(block_num_x,block_num_y),dim3(block_size,block_size)>>>
-	//	(A_on_dev.elements_on_dev,B_on_dev.elements_on_dev,C_on_dev.elements_on_dev,A_on_dev.m,A_on_dev.n);
+	Matrix_Multiplication_ATBA_Kernel_Your_Version<<<dim3(block_num_x,block_num_y),dim3(block_size,block_size)>>>
+		(A_on_dev.elements_on_dev,B_on_dev.elements_on_dev,C_on_dev.elements_on_dev,A_on_dev.m,A_on_dev.n);
 
 	cudaEventRecord(end);
 	cudaEventSynchronize(end);
