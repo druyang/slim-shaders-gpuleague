@@ -16,10 +16,9 @@ using namespace std;
 
 namespace name
 {
-	std::string team="Team_X";
-	std::string author_1="Name_1";
-	std::string author_2="Name_2";
-	std::string author_3="Name_3";	////optional
+	std::string team="slim_shaders";
+	std::string author_1="Andrw_Yang";
+	std::string author_2="Matthew_Kenney";
 };
 
 ////This is a matrix class to carry out linear algebra operations on both GPU and CPU
@@ -145,7 +144,54 @@ __global__ void Matrix_Multiplication_AB_Kernel_Poorman(const float* Ae,const fl
 __global__ void Matrix_Multiplication_AB_Kernel_Your_Version(const float* Ae,const float* Be,float* Ce,const int Am,const int An,const int Bn)
 {
 	/*Your implementation starts*/
-	/*Your implementation ends*/
+	const int blockSize = 16;
+	int tileRow = blockIdx.y;
+	int tileCol = blockIdx.x;
+
+	int row = threadIdx.y;
+	int col = threadIdx.x;
+
+	// Each thread block computes one sub-matrix Csub of C
+	// Bn = Width of B = Width of C
+	// Code from GetSubMatrix Function: 
+	// Asub.elements = &A.elements[A.stride * BLOCK_SIZE * row + BLOCK_SIZE * col];
+	float* C_tile = &Ce[Bm * blockSize * tileRow + blockSize * tileCol];
+
+
+	// Each thread computes one element of Csub
+	// by accumulating results into Cvalue
+	float Cvalue = 0;
+	// Thread row and column within Csub
+
+	// Loop over all the sub-matrices of A and B that are
+	// required to compute Csub
+	// Multiply each pair of sub-matrices together
+	// and accumulate the results
+	for (int m = 0; m < (An / blockSize); ++m) {
+		 
+		const float* A_tile = &Ae[An * tileRow * blockSize + m * blockSize];
+		const float* B_tile = &Be[Bn * blockSize * m + tileCol *blockSize];
+
+		// Shared memory used to store Asub and Bsub respectively
+		__shared__ float A_s[blockSize][blockSize];
+		__shared__ float B_s[blockSize][blockSize];
+
+		// Load Asub and Bsub from device memory to shared memory
+		// Each thread loads one element of each sub-matrix
+		A_s[row][col] = A_tile[row * An + col];
+		B_s[row][col] = B_tile[row * Bn + col];
+		__syncthreads();
+
+		// Perform multiplication of the tile 
+		for (int e = 0; e < blockSize; ++e) 
+		{
+		 Cvalue += A_s[row][e] * B_s[e][col];
+		}
+		__syncthreads();
+	}
+	// Ce[row][col] = Cvalue;
+	C_tile[row * Bn + col] = Cvalue;
+
 }
 
 ////This is a sample implementation without using any memory hierarchy
@@ -220,14 +266,14 @@ __host__ void Test_Matrix_Multiplication_AB_On_GPU(const Matrix& A,const Matrix&
 	const int block_num_y=C.n/block_size;
 
 	////TODO: this is a sample implementation. Comment it out to test your own code.
-	Matrix_Multiplication_AB_Kernel_Poorman<<<dim3(block_num_x,block_num_y),dim3(block_size,block_size)>>>
-		(A_on_dev.elements_on_dev,B_on_dev.elements_on_dev,C_on_dev.elements_on_dev,A_on_dev.m,A_on_dev.n,B_on_dev.n);
+	// Matrix_Multiplication_AB_Kernel_Poorman<<<dim3(block_num_x,block_num_y),dim3(block_size,block_size)>>>
+	// 	(A_on_dev.elements_on_dev,B_on_dev.elements_on_dev,C_on_dev.elements_on_dev,A_on_dev.m,A_on_dev.n,B_on_dev.n);
 
 	////TODO: Uncomment this to test your own implementation
 	////NOTICE: You do not have to use the block_size I specified here. You may customize the size of your grid and blocks for better performance.
 
-	//Matrix_Multiplication_Kernel_Your_Version<<<dim3(block_num_x,block_num_y),dim3(block_size,block_size)>>>
-	//	(A_on_dev.elements_on_dev,B_on_dev.elements_on_dev,C_on_dev.elements_on_dev,A_on_dev.m,A_on_dev.n,B_on_dev.n);
+	Matrix_Multiplication_AB_Kernel_Your_Version<<<dim3(block_num_x,block_num_y),dim3(block_size,block_size)>>>
+		(A_on_dev.elements_on_dev,B_on_dev.elements_on_dev,C_on_dev.elements_on_dev,A_on_dev.m,A_on_dev.n,B_on_dev.n);
 
 	cudaEventRecord(end);
 	cudaEventSynchronize(end);
