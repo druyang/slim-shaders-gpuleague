@@ -155,15 +155,16 @@ __global__ void Matrix_Multiplication_AB_Kernel_Your_Version(const float* Ae,con
 
 	float Cvalue = 0;
 
+	// iterate over matrix to tile 
 	for (int m = 0; m < (An / blockSize); ++m) {
 		 
-		const float* A_tile = &Ae[An * tileRow * blockSize + m * blockSize];
+		const float* A_tile = &Ae[An * tileRow * blockSize + m * blockSize]; // tile A and B matrices 
 		const float* B_tile = &Be[Bn * blockSize * m + tileCol *blockSize];
 
 		__shared__ float A_s[blockSize][blockSize];
 		__shared__ float B_s[blockSize][blockSize];
 
-		A_s[row][col] = A_tile[row * An + col];
+		A_s[row][col] = A_tile[row * An + col]; // load into shared memory 
 		B_s[row][col] = B_tile[row * Bn + col];
 		__syncthreads();
 
@@ -209,48 +210,44 @@ __global__ void Matrix_Multiplication_ATBA_Kernel_Your_Version(const float* Ae,c
 	int row = threadIdx.x;
 	int col = threadIdx.y;
 
-	float* C_tile = &Ce[Am * blockSize * tileRow + blockSize * tileCol];
+	float* C_tile = &Ce[An * blockSize * tileRow + blockSize * tileCol];
 
 	float Cvalue = 0;
 
 
-	for (int m = 0; m < (An / blockSize); ++m) {
+	for (int m = 0; m < (Am / blockSize); ++m) { // find transpose
 		 
-		const float* A_tile = &Ae[An * tileRow * blockSize + m * blockSize];
 		const float* A_tile_transpose = &Ae[Am * blockSize * m + tileCol *blockSize];
-		const float* B_tile = &Be[Am * blockSize * m + tileCol *blockSize];
 
-		__shared__ float A_s[blockSize][blockSize];
-		__shared__ float B_s[blockSize][blockSize];
 		__shared__ float A_s_tranpose[blockSize][blockSize];
-
-
-		A_s[row][col] = A_tile[row * An + col];
-		A_s_tranpose[row][col] = A_tile_transpose[col * Am + row];
-		B_s[row][col] = B_tile[row * Am + col];
+	
+		A_s_tranpose[row][col] = A_tile_transpose[row * An + col];
 		__syncthreads();
 
-		// Former setup:
-		// for(int e=0;e<An;e++)
-		// val += Ae[i*An+e]*Be[e*Bn+j];
-		//
-		// Cvalue += A_s[row][e] * B_s[e][col];
+		for(int i = 0; i < (Am / blockSize); ++i) 
+		{ // order of operations around As Bs 
+			const float* A_tile = &Ae[An * blockSize * i + blockSize * tileRow];
+			const float* B_tile = &Be[Am * blockSize * m + i * blockSize];
+
+			__shared__ float A_s[blockSize][blockSize];
+			__shared__ float B_s[blockSize][blockSize];
 
 
-		// for(int l=0;l<Am;l++)
-		// for(int k=0;k<Am;k++)
-			// val+=Ae[l*An+i]*Be[l*Am+k]*Ae[k*An+j];
+			A_s[row][col] = A_tile[row * An + col];
+			B_s[row][col] = B_tile[row * Am + col];
 
-		for (int l = 0; l < blockSize; ++l)
-		{
-			for (int k = 0; k < blockSize; ++k) 
+			for (int l = 0; l < blockSize; ++l)
 			{
-				Cvalue += A_s_tranpose[row][l] * B_s[l][k] * A_s[k][col];
+				for (int k = 0; k < blockSize; ++k) 
+				{
+					Cvalue += A_s_tranpose[row][l] * B_s[l][k] * A_s[k][col];
+				}
 			}
 		}
 		__syncthreads();
 	}
-	C_tile[row * Am + col] = Cvalue;
+
+	C_tile[row * An + col] = Cvalue;
 	/*Your implementation ends*/
 }
 
@@ -263,9 +260,26 @@ __global__ void Matrix_Multiplication_ATBA_Kernel_Your_Version(const float* Ae,c
 ////Please write your own kernel function here, and call it in the function Test_F_Norm_On_GPU to test its correctness and performance
 /*Your implementation starts*/
 
-__global__ void Test_F_Norm_On_GPU(const float *A, int An, int Am, int *norm)
+__global__ void Test_F_Norm_On_GPU(const float *A, const int An, const int Am, float int *norm)
 {
-	// extern __shared__ float shared_data[]; 
+	const int blockSize = 16; 
+	 int j = blockIdx.x * blockSize + threadIdx.x; // find i and j indices of the matrix
+	 int i = blockIdx.y * blockSize + threadIdx.y;
+	int tid=blockIdx.x*blockDim.x+threadIdx.x;
+	 __shared__ float shared_data[i][j] = A[i*An+j]*A[i*An+j];  // load into shared memory 
+
+	__syncthreads(); 
+
+	for(unsigned int s=1;s<blockDim.x;s*=2){
+		if(tid%(2*s)==0){
+			shared_data[tid]+=shared_data[tid+s];
+		}
+		__syncthreads();
+	}
+
+	if(tid==0){norm=shared_data[0];}
+
+
 	// unsigned int 
 	
 }
@@ -361,7 +375,7 @@ __host__ void Test_Matrix_Multiplication_ATBA_On_GPU(const Matrix& A,const Matri
 	////NOTICE: You do not have to use the block_size I specified here. You may customize the size of your grid and blocks for better performance.
 	
 	Matrix_Multiplication_ATBA_Kernel_Your_Version<<<dim3(block_num_x,block_num_y),dim3(block_size,block_size)>>>
-		(A_on_dev.elements_on_dev,B_on_dev.elements_on_dev,C_on_dev.elements_on_dev,A_on_dev.m,A_on_dev.n);
+		(A_on_dev.elements_on_dev,B_on_dev.elements_on_dev,C_on_dev.elements_on_dev,A_on_dev.m,A_on_dev.n, norm);
 
 	cudaEventRecord(end);
 	cudaEventSynchronize(end);
@@ -391,6 +405,10 @@ __host__ void Test_Matrix_F_Norm_On_GPU(const Matrix& A,/*result*/float& norm)
 
 	//// Invoke kernel
 	////TODO: call the F norm kernel you implemented, and return the value to the passed-in variable norm
+	const int block_size = 16; 
+	const int block_num_x = A.m/block_size; 
+	const int block_num_y = A.n/block_size; 
+	Test_F_Norm_On_GPU<<<dim3(block_num_x,block_num_y),dim3(block_size,block_size)>>>(A_on_dev.elements_on_dev, A_on_dev.n, A_on_dev.m, &norm); 
 
 	cudaEventRecord(end);
 	cudaEventSynchronize(end);
