@@ -232,9 +232,9 @@ __global__ void Matrix_Multiplication_ATBA_Kernel_Your_Version(const float* Ae,c
 			__shared__ float A_s[blockSize][blockSize];
 			__shared__ float B_s[blockSize][blockSize];
 
-
 			A_s[row][col] = A_tile[row * An + col];
 			B_s[row][col] = B_tile[row * Am + col];
+			__syncthreads(); 
 
 			for (int l = 0; l < blockSize; ++l)
 			{
@@ -260,29 +260,29 @@ __global__ void Matrix_Multiplication_ATBA_Kernel_Your_Version(const float* Ae,c
 ////Please write your own kernel function here, and call it in the function Test_F_Norm_On_GPU to test its correctness and performance
 /*Your implementation starts*/
 
-__global__ void Test_F_Norm_On_GPU(const float *A, const int An, const int Am, float int *norm)
-{
-	const int blockSize = 16; 
-	int j = blockIdx.x * blockSize + threadIdx.x; // find i and j indices of the matrix
-	int i = blockIdx.y * blockSize + threadIdx.y;
-	int tid=blockIdx.x*blockDim.x+threadIdx.x;
-	 __shared__ float shared_data[i][j] = A[i*An+j]*A[i*An+j];  // load into shared memory 
+// __global__ void Test_F_Norm_On_GPU(const float *A, const int An, const int Am, float int *norm)
+// {
+// 	const int blockSize = 16; 
+// 	 int j = blockIdx.x * blockSize + threadIdx.x; // find i and j indices of the matrix
+// 	 int i = blockIdx.y * blockSize + threadIdx.y;
+// 	int tid=blockIdx.x*blockDim.x+threadIdx.x;
+// 	 __shared__ float shared_data[i][j] = A[i*An+j]*A[i*An+j];  // load into shared memory 
 
-	__syncthreads(); 
+// 	__syncthreads(); 
 
-	for(unsigned int s=1;s<blockDim.x;s*=2){
-		if(tid%(2*s)==0){
-			shared_data[tid]+=shared_data[tid+s];
-		}
-		__syncthreads();
-	}
+// 	for(unsigned int s=1;s<blockDim.x;s*=2){
+// 		if(tid%(2*s)==0){
+// 			shared_data[tid]+=shared_data[tid+s];
+// 		}
+// 		__syncthreads();
+// 	}
 
-	if(tid==0){norm=shared_data[0];}
+// 	if(tid==0){norm=shared_data[0];}
 
 
-	// unsigned int 
+// 	// unsigned int 
 	
-}
+// }
 
 /*Your implementation ends*/
 
@@ -375,7 +375,7 @@ __host__ void Test_Matrix_Multiplication_ATBA_On_GPU(const Matrix& A,const Matri
 	////NOTICE: You do not have to use the block_size I specified here. You may customize the size of your grid and blocks for better performance.
 	
 	Matrix_Multiplication_ATBA_Kernel_Your_Version<<<dim3(block_num_x,block_num_y),dim3(block_size,block_size)>>>
-		(A_on_dev.elements_on_dev,B_on_dev.elements_on_dev,C_on_dev.elements_on_dev,A_on_dev.m,A_on_dev.n, norm);
+		(A_on_dev.elements_on_dev,B_on_dev.elements_on_dev,C_on_dev.elements_on_dev,A_on_dev.m,A_on_dev.n);
 
 	cudaEventRecord(end);
 	cudaEventSynchronize(end);
@@ -408,7 +408,7 @@ __host__ void Test_Matrix_F_Norm_On_GPU(const Matrix& A,/*result*/float& norm)
 	const int block_size = 16; 
 	const int block_num_x = A.m/block_size; 
 	const int block_num_y = A.n/block_size; 
-	Test_F_Norm_On_GPU<<<dim3(block_num_x,block_num_y),dim3(block_size,block_size)>>>(A_on_dev.elements_on_dev, A_on_dev.n, A_on_dev.m, &norm); 
+	// Test_F_Norm_On_GPU<<<dim3(block_num_x,block_num_y),dim3(block_size,block_size)>>>(A_on_dev.elements_on_dev, A_on_dev.n, A_on_dev.m, &norm); 
 
 	cudaEventRecord(end);
 	cudaEventSynchronize(end);
