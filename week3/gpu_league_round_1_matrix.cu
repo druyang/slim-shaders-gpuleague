@@ -263,8 +263,8 @@ __global__ void Matrix_Multiplication_ATBA_Kernel_Your_Version(const float* Ae,c
 __global__ void Test_F_Norm_On_GPU(const float *A, const int An, const int Am, float int *norm)
 {
 	const int blockSize = 16; 
-	 int j = blockIdx.x * blockSize + threadIdx.x; // find i and j indices of the matrix
-	 int i = blockIdx.y * blockSize + threadIdx.y;
+	int j = blockIdx.x * blockSize + threadIdx.x; // find i and j indices of the matrix
+	int i = blockIdx.y * blockSize + threadIdx.y;
 	int tid=blockIdx.x*blockDim.x+threadIdx.x;
 	 __shared__ float shared_data[i][j] = A[i*An+j]*A[i*An+j];  // load into shared memory 
 
