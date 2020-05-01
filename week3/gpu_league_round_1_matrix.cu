@@ -206,7 +206,6 @@ __global__ void Matrix_Multiplication_ATBA_Kernel_Your_Version(const float* Ae,c
 	const int blockSize = 16;
 	int tileRow = blockIdx.x;
 	int tileCol = blockIdx.y;
-
 	int row = threadIdx.x;
 	int col = threadIdx.y;
 
@@ -260,29 +259,29 @@ __global__ void Matrix_Multiplication_ATBA_Kernel_Your_Version(const float* Ae,c
 ////Please write your own kernel function here, and call it in the function Test_F_Norm_On_GPU to test its correctness and performance
 /*Your implementation starts*/
 
-// __global__ void Test_F_Norm_On_GPU(const float *A, const int An, const int Am, float int *norm)
-// {
-// 	const int blockSize = 16; 
-// 	 int j = blockIdx.x * blockSize + threadIdx.x; // find i and j indices of the matrix
-// 	 int i = blockIdx.y * blockSize + threadIdx.y;
-// 	int tid=blockIdx.x*blockDim.x+threadIdx.x;
-// 	 __shared__ float shared_data[i][j] = A[i*An+j]*A[i*An+j];  // load into shared memory 
+__global__ void Test_F_Norm_On_GPU(const float *Ae, const int An, const int Am, float* norm)
+{
 
-// 	__syncthreads(); 
+	const int blockSize = 16;
+	const int num_threads = blockSize * blockSize;
+	int global_thread_id = (blockIdx.y * gridDim.x + blockDim.x) * (blockDim.x * blockDim.y) + (threadIdx.y * blockDim.x)+ threadIdx.x;
+	int local_thread_id = threadIdx.y * blockDim.x+ threadIdx.x;
 
-// 	for(unsigned int s=1;s<blockDim.x;s*=2){
-// 		if(tid%(2*s)==0){
-// 			shared_data[tid]+=shared_data[tid+s];
-// 		}
-// 		__syncthreads();
-// 	}
+	__shared__ float block_sum[blockSize * blockSize];
+	block_sum[local_thread_id]= Ae[global_thread_id];  // load into shared memory 
+	block_sum[local_thread_id] *= block_sum[local_thread_id]; // compute the square
+	__syncthreads(); 
 
-// 	if(tid==0){norm=shared_data[0];}
-
-
-// 	// unsigned int 
-	
-// }
+	for(unsigned int i=num_threads/2; i> 0; i/=2){
+		if(local_thread_id < i) {
+			block_sum[local_thread_id]+=block_sum[local_thread_id + i];
+		}
+		__syncthreads();
+	}
+	if(local_thread_id==0) {
+		atomicAdd(norm, block_sum[0]);
+	}
+}
 
 /*Your implementation ends*/
 
@@ -408,7 +407,19 @@ __host__ void Test_Matrix_F_Norm_On_GPU(const Matrix& A,/*result*/float& norm)
 	const int block_size = 16; 
 	const int block_num_x = A.m/block_size; 
 	const int block_num_y = A.n/block_size; 
-	// Test_F_Norm_On_GPU<<<dim3(block_num_x,block_num_y),dim3(block_size,block_size)>>>(A_on_dev.elements_on_dev, A_on_dev.n, A_on_dev.m, &norm); 
+
+	float* norm_dev; 
+	cudaMalloc((void **)&norm_dev, sizeof(float));
+	cudaMemcpy(norm_dev, &norm, sizeof(float), cudaMemcpyHostToDevice);
+	Test_F_Norm_On_GPU<<<dim3(block_num_x,block_num_y),dim3(block_size,block_size)>>>
+		(A_on_dev.elements_on_dev, A_on_dev.n, A_on_dev.m, norm_dev); 
+
+	cudaMemcpy(&norm, norm_dev, sizeof(float), cudaMemcpyDeviceToHost);
+
+	// Calculate the SQRT on host, since this computation is inexpensive
+	norm = sqrt(norm);
+	cudaFree(norm_dev);
+
 
 	cudaEventRecord(end);
 	cudaEventSynchronize(end);
