@@ -16,10 +16,9 @@ using namespace std;
 
 namespace name
 {
-	std::string team="Team_X";
-	std::string author_1="Name_1";
-	std::string author_2="Name_2";
-	std::string author_3="Name_3";	////optional
+	std::string team="Slim_Shaders";
+	std::string author_1="Andrw_Yang";
+	std::string author_2="Matthew_Kenney";
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -82,6 +81,112 @@ __host__ void N_Body_Simulation_CPU_Poorman(double* pos_x,double* pos_y,double* 
 //////////////////////////////////////////////////////////////////////////
 ////TODO 1: your GPU variables and functions start here
 
+// Compute Acceleration from Force interaction between two bodies  
+__device__ void findAccel(const double ipos_x, const double ipos_y, const double ipos_z, //// Body compared to (constant throughout kernel call)
+						  const double jpos_x, const double jpos_y, const double jpos_z, //// Body comparing to  
+						  const double jmass, 							  				//// Mass of ipos
+						  const double epsilon_squared
+						  double* ai_delta_x, double* ai_delta_y, double* ai_delta_z)
+{
+
+	// Compute the Denominator of the Acceleration Update
+	double r_x = jpos_x - ipos_x;
+	double r_y = jpos_y - ipos_y;
+	double r_z = jpos_z - ipos_z;
+	double r2 = r_x * rx + ry * ry + rz * rz + epsilon_squared;
+	double r6 = r2 * r2 * r2
+	double r6_inverted = 1.0 / sqrt(r6);
+	double directionless_ai = r6_inverted * jmass
+
+
+	// Compute the change in acceleration:
+	ai_delta_x = r_x * directionless_ai;
+	ai_delta_y = r_y * directionless_ai;
+	ai_delta_z = r_z * directionless_ai;
+	
+
+}
+
+// Computes Velocity and Positino given Acceleration for a single body 
+// Given time step, position, velocity, and acceleration for that body 
+__device__ void findVP(const int dt, 
+						double pos_x, double pos_y, double pos_z, 
+						double vel_x, double vel_y, double vel_z, 
+						double acl_x, double acl_y, double acl_z, 
+						)
+{
+	
+}
+
+// Tiling Function 
+// For each body/thread 
+	// Tiles body arrays into manageable chunks -> shared memory 
+	// Calls findForce as the tile progresses through shared memory 
+	
+
+
+	// Computes final position with findVP per body 
+
+__global__ void tileForceBodies(double* pos_x, double* pos_y, double* pos_z, double* mass) 
+{
+
+	// blockDim x blockDim shared memory
+	// [x0, x1, x2, x3, ..., xn, y0, y1, y2, ..., yn]
+	extern __shared__ double[] bodyData;
+
+	const int x_idx = 0;
+	const int y_idx = blockDim.x;
+	const int z_idx = blockDim.x * 2;
+	const int w_idx = blockDim.x * 3;
+
+	global_tid = blockIdx.x * blockDim.x + threadIdx.x
+	local_tid = threadIdx.x;
+
+
+	// This thread's information:
+	double ipos_x = pos_x[global_tid];
+	double ipos_y = pos_y[global_tid];
+	double ipos_z = pos_z[global_tid];
+	double ai_x = 0; 
+	double ai_y = 0;
+	double ai_z = 0;
+
+
+
+	// Load shared memory 
+	for(int i = 0; i < N, i+=blockDim.x) { // divides into pxp chunks
+		// load position values for blockDim elements into shared memory:
+		bodyData[x_idx + local_tid] = pos_x[i + local_tid];
+		bodyData[y_idx + local_tid] = pos_y[i + local_tid];
+		bodyData[z_idx + local_tid] = pos_z[i + local_tid];
+		bodyData[w_idx + local_tid] = mass[i + local_tid];
+		__syncthreads();
+
+		// Calculate interactions with body i 
+		for(int j = i; j < i + blockDim.x; j++) {
+			jpos_x = bodyData[x_idx + j];
+			jpos_y = bodyData[y_idx + j];
+			jpos_z = bodyData[z_idx + j];
+			jmass = bodyData[w_idx + j];
+
+			findAccel(const double ipos_x, const double ipos_y, const double ipos_z,
+					  const double jpos_x, const double jpos_y, const double jpos_z,
+					  const double jmass, 
+					  const double epsilon_squared, 
+					  double* ai_x, double* ai_y, double* ai_z); 
+
+		}
+
+
+	}
+
+}
+
+thread_count = 128; 
+
+k = N/thread_count + 1 ; 
+
+tileForceBodies<<k,thread_count>>
 
 ////Your implementations end here
 //////////////////////////////////////////////////////////////////////////
@@ -137,8 +242,8 @@ __host__ void Test_N_Body_Simulation()
 	memset(acl_z,0x00,particle_n*sizeof(double));
 
 	double* mass=new double[particle_n];
-	for(int i=0;i<particle_n;i++){
-		mass[i]=100.0;
+	for(int i=0;i<particle_n;i++) {
+		mass[i] = 100.0;
 	}
 
 
