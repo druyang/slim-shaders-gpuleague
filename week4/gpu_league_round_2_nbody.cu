@@ -2,6 +2,7 @@
 ////This is the code implementation for GPU Premier League Round 2: n-body simulation
 //////////////////////////////////////////////////////////////////////////
 #include <iostream>
+#include <stdio.h>
 #include <fstream>
 #include <vector>
 #include <chrono>
@@ -94,15 +95,14 @@ __device__ double3 findAccel(const double4 ipos, const double4 jpos, //// Body c
 	double rx = jpos.x - ipos.x;
 	double ry = jpos.y - ipos.y;
 	double rz = jpos.z - ipos.z;
-	double r2 = rx * rx + ry * ry + rz * rz + epsilon_squared;
-	double r6 = r2 * r2 * r2;
-	double r6_inverted = 1.0 / sqrt(r6);
-	double directionless_ai = r6_inverted * jpos.w;
+	double r2 = rx * rx + ry * ry + rz * rz;
+	double r6_inverted = 1.0 / pow(sqrt(r2+epsilon_squared), 3); 
+	double directionless_ai = r6_inverted ;
 
 	// Compute the change in acceleration:
-	ai.x += rx * directionless_ai;
-	ai.y += ry * directionless_ai;
-	ai.z += rz * directionless_ai;
+	ai.x += rx * directionless_ai * jpos.w;
+	ai.y += ry * directionless_ai * jpos.w;
+	ai.z += rz * directionless_ai * jpos.w;
 
 	return ai;
 
@@ -173,6 +173,7 @@ __global__ void tileForceBodies(double4* pos, double3 *vel, double3 *acc,
 			double4 jpos = bodyData[j];
 			this_acc = findAccel(this_pos, jpos, epsilon_squared, this_acc);
 		}
+		__syncthreads();
 	}
 
 	// Find position and velocity 
@@ -204,9 +205,17 @@ const double epsilon=1e-2;						////epsilon added in the denominator to avoid 0-
 const double epsilon_squared=epsilon*epsilon;	////epsilon squared
 
 ////We use grid_size=4 to help you debug your code, change it to a bigger number (e.g., 16, 32, etc.) to test the performance of your GPU code
-const unsigned int grid_size=4;					////assuming particles are initialized on a background grid
+const unsigned int grid_size= 16;					////assuming particles are initialized on a background grid
 const unsigned int particle_n=pow(grid_size,3);	////assuming each grid cell has one particle at the beginning
-const unsigned int thread_count = particle_n; 
+
+// get number of threads per block to use:
+// cudaDeviceProp prop;
+// cudaGetDeviceProperties(&, 0);
+// size_t sharedMemPerBlock = prop.sharedMemPerBlock;
+// const unsigned int thread_count = floor((double)sharedMemPerBlock / (double)(sizeof(float4)));
+// printf("Using %d threads", thread_count);
+
+const unsigned int thread_count = 128;
 
 __host__ void Test_N_Body_Simulation()
 {
@@ -283,7 +292,7 @@ __host__ void Test_N_Body_Simulation()
 		}
 	}
 
-	for(int i=0;i<particle_n;i++){
+	for(int i=0;i<particle_n;i++) {
 		pos_host[i].w=100.0;
 	}
 	
@@ -328,7 +337,7 @@ __host__ void Test_N_Body_Simulation()
 
 	//////////////////////////////////////////////////////////////////////////
 
-	int num_blocks = particle_n/thread_count + 1 ; 
+	int num_blocks = ceil(particle_n/thread_count); 
 	
 	cout<<"Total number of particles: "<<particle_n<<endl;
 	cout<<"Tracking the motion of particle "<<particle_n/2<<endl;
@@ -336,7 +345,7 @@ __host__ void Test_N_Body_Simulation()
 	// Step through time 
 	for(int i=0;i<time_step_num;i++){
 
-		tileForceBodies<<<2, thread_count>>>(pos_gpu, vel_gpu, acl_gpu, epsilon_squared, dt, particle_n);
+		tileForceBodies<<<num_blocks, thread_count, thread_count*sizeof(double4)>>>(pos_gpu, vel_gpu, acl_gpu, epsilon_squared, dt, particle_n);
 		cudaMemcpy(pos_host, pos_gpu, particle_n*sizeof(double4), cudaMemcpyDeviceToHost);
 		cout<<"pos on timestep "<<i<<": "<<pos_host[particle_n/2].x<<", "<<pos_host[particle_n/2].y<<", "<<pos_host[particle_n/2].z<<endl;
 	}
