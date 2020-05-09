@@ -82,41 +82,55 @@ __host__ void N_Body_Simulation_CPU_Poorman(double* pos_x,double* pos_y,double* 
 ////TODO 1: your GPU variables and functions start here
 
 // Compute Acceleration from Force interaction between two bodies  
-__device__ void findAccel(const double ipos_x, const double ipos_y, const double ipos_z, //// Body compared to (constant throughout kernel call)
-						  const double jpos_x, const double jpos_y, const double jpos_z, //// Body comparing to  
-						  const double jmass, 							  				//// Mass of ipos
-						  const double epsilon_squared
-						  double* ai_delta_x, double* ai_delta_y, double* ai_delta_z)
+__device__ double3 findAccel(const double4 ipos, const double4 jpos, //// Body comparing to  
+						  const double epsilon_squared, double3 ai)
 {
+	// ipos -> position (and mass) of body i
+	// jpos -> position (and mass) of body j
+	// epsilon_sqared -> softening factor
+	// ai -> acceleration of body i to update
 
 	// Compute the Denominator of the Acceleration Update
-	double r_x = jpos_x - ipos_x;
-	double r_y = jpos_y - ipos_y;
-	double r_z = jpos_z - ipos_z;
-	double r2 = r_x * rx + ry * ry + rz * rz + epsilon_squared;
-	double r6 = r2 * r2 * r2
+	double rx = jpos.x - ipos.x;
+	double ry = jpos.y - ipos.y;
+	double rz = jpos.z - ipos.z;
+	double r2 = rx * rx + ry * ry + rz * rz + epsilon_squared;
+	double r6 = r2 * r2 * r2;
 	double r6_inverted = 1.0 / sqrt(r6);
-	double directionless_ai = r6_inverted * jmass
-
+	double directionless_ai = r6_inverted * jpos.w;
 
 	// Compute the change in acceleration:
-	ai_delta_x = r_x * directionless_ai;
-	ai_delta_y = r_y * directionless_ai;
-	ai_delta_z = r_z * directionless_ai;
-	
+	ai.x += rx * directionless_ai;
+	ai.y += ry * directionless_ai;
+	ai.z += rz * directionless_ai;
+
+	return ai;
 
 }
 
-// Computes Velocity and Positino given Acceleration for a single body 
+// Computes Velocity and Position given Acceleration for a single body 
 // Given time step, position, velocity, and acceleration for that body 
-__device__ void findVP(const int dt, 
-						double pos_x, double pos_y, double pos_z, 
-						double vel_x, double vel_y, double vel_z, 
-						double acl_x, double acl_y, double acl_z, 
-						)
+__device__ double3 findV(double3 vel, double3 acc, const double dt)
 {
-	
+	// update velocity 
+	vel.x += acc.x * dt;
+	vel.y += acc.y * dt;
+	vel.z += acc.z * dt;
+
+	return vel;
+
 }
+__device__ double4 findP(double4 pos, double3 vel, const double dt)
+{
+	// update position 
+	pos.x += vel.x * dt;
+	pos.y += vel.y * dt;
+	pos.z += vel.z * dt;
+
+	return pos;
+
+}
+
 
 // Tiling Function 
 // For each body/thread 
@@ -127,66 +141,52 @@ __device__ void findVP(const int dt,
 
 	// Computes final position with findVP per body 
 
-__global__ void tileForceBodies(double* pos_x, double* pos_y, double* pos_z, double* mass) 
+__global__ void tileForceBodies(double4* pos, double3 *vel, double3 *acc, 
+								const double epsilon_squared, 
+								const double dt, 
+								const double particle_n) 
 {
+	int global_tid = blockIdx.x * blockDim.x + threadIdx.x;
+	int local_tid = threadIdx.x;
 
-	// blockDim x blockDim shared memory
-	// [x0, x1, x2, x3, ..., xn, y0, y1, y2, ..., yn]
-	extern __shared__ double[] bodyData;
-
-	const int x_idx = 0;
-	const int y_idx = blockDim.x;
-	const int z_idx = blockDim.x * 2;
-	const int w_idx = blockDim.x * 3;
-
-	global_tid = blockIdx.x * blockDim.x + threadIdx.x
-	local_tid = threadIdx.x;
-
+	if (global_tid >= particle_n) {
+		return;
+	}
 
 	// This thread's information:
-	double ipos_x = pos_x[global_tid];
-	double ipos_y = pos_y[global_tid];
-	double ipos_z = pos_z[global_tid];
-	double ai_x = 0; 
-	double ai_y = 0;
-	double ai_z = 0;
+	double4 this_pos = pos[global_tid]; // w (mass), x, y, z
+	double3 this_vel = vel[global_tid]; // current body's velocity
+	double3 this_acc; // current acceleration (set via N-body computation)
 
-
-
+	// 1 x blockDim shared memory
+	extern __shared__ double4 bodyData[];
+	
 	// Load shared memory 
-	for(int i = 0; i < N, i+=blockDim.x) { // divides into pxp chunks
-		// load position values for blockDim elements into shared memory:
-		bodyData[x_idx + local_tid] = pos_x[i + local_tid];
-		bodyData[y_idx + local_tid] = pos_y[i + local_tid];
-		bodyData[z_idx + local_tid] = pos_z[i + local_tid];
-		bodyData[w_idx + local_tid] = mass[i + local_tid];
+	for(int i = 0; i < particle_n; i+=blockDim.x) { // divides particles into N/blockDim chunks
+
+		// load position values for blockDim particles into shared memory:
+		bodyData[local_tid] = pos[i + local_tid]; // move blockDim slots ahead on each outer loop execution
 		__syncthreads();
 
-		// Calculate interactions with body i 
-		for(int j = i; j < i + blockDim.x; j++) {
-			jpos_x = bodyData[x_idx + j];
-			jpos_y = bodyData[y_idx + j];
-			jpos_z = bodyData[z_idx + j];
-			jmass = bodyData[w_idx + j];
-
-			findAccel(const double ipos_x, const double ipos_y, const double ipos_z,
-					  const double jpos_x, const double jpos_y, const double jpos_z,
-					  const double jmass, 
-					  const double epsilon_squared, 
-					  double* ai_x, double* ai_y, double* ai_z); 
-
+		// Calculate interactions between current body & all bodies j in the domain j ∈ [i, i + blockDim) 
+		for(int j = 0; j < blockDim.x; j++) {
+			double4 jpos = bodyData[j];
+			this_acc = findAccel(this_pos, jpos, epsilon_squared, this_acc);
 		}
-
-
 	}
+
+	// Find position and velocity 
+	this_vel = findV(this_vel, this_acc, dt);
+	this_pos = findP(this_pos, this_vel, dt);
+
+	// write back to global memory:
+	acc[global_tid] = this_acc;
+	vel[global_tid] = this_vel;
+	pos[global_tid] = this_pos;
 
 }
 
-thread_count = 128; 
 
-k = N/thread_count + 1 ; 
-
-tileForceBodies<<k,thread_count>>
 
 ////Your implementations end here
 //////////////////////////////////////////////////////////////////////////
@@ -206,6 +206,7 @@ const double epsilon_squared=epsilon*epsilon;	////epsilon squared
 ////We use grid_size=4 to help you debug your code, change it to a bigger number (e.g., 16, 32, etc.) to test the performance of your GPU code
 const unsigned int grid_size=4;					////assuming particles are initialized on a background grid
 const unsigned int particle_n=pow(grid_size,3);	////assuming each grid cell has one particle at the beginning
+const unsigned int thread_count = particle_n; 
 
 __host__ void Test_N_Body_Simulation()
 {
@@ -254,14 +255,61 @@ __host__ void Test_N_Body_Simulation()
 	cout<<"Total number of particles: "<<particle_n<<endl;
 	cout<<"Tracking the motion of particle "<<particle_n/2<<endl;
 	for(int i=0;i<time_step_num;i++){
+
 		N_Body_Simulation_CPU_Poorman(pos_x,pos_y,pos_z,vel_x,vel_y,vel_z,acl_x,acl_y,acl_z,mass,particle_n,dt,epsilon_squared);
 		cout<<"pos on timestep "<<i<<": "<<pos_x[particle_n/2]<<", "<<pos_y[particle_n/2]<<", "<<pos_z[particle_n/2]<<endl;
+
 	}
 	auto cpu_end=chrono::system_clock::now();
 	chrono::duration<double> cpu_time=cpu_end-cpu_start;
 	cout<<"CPU runtime: "<<cpu_time.count()*1000.<<" ms."<<endl;
 
 	//////////////////////////////////////////////////////////////////////////
+	// Creating double values like CPU and moving to GPU 
+
+	double4* pos_host = new double4[particle_n]; 
+	double3* vel_host= new double3[particle_n]; 
+	double3* acl_host = new double3[particle_n];
+
+	// Set position and mass data in pos_gpu 
+	for(unsigned int k=0;k<grid_size;k++){
+		for(unsigned int j=0;j<grid_size;j++){
+			for(unsigned int i=0;i<grid_size;i++){
+				unsigned int index=k*grid_size*grid_size+j*grid_size+i;
+				pos_host[index].x = dx*(double)i; 
+				pos_host[index].y = dx*(double)j; 
+				pos_host[index].z = dx*(double)k; 
+			}
+		}
+	}
+
+	for(int i=0;i<particle_n;i++){
+		pos_host[i].w=100.0;
+	}
+	
+	// set velocity and acceleration vectors to 0 
+	for(int i=0; i<particle_n; i++){
+		vel_host[i].x = 0;
+		vel_host[i].y = 0;
+		vel_host[i].z = 0;
+		acl_host[i].x = 0;
+		acl_host[i].y = 0;
+		acl_host[i].z = 0;
+
+	}
+
+	// Copy vectors over to GPU  
+	double4* pos_gpu; 
+	double3* vel_gpu; 
+	double3* acl_gpu; 
+
+	cudaMalloc((void**)&pos_gpu, particle_n * sizeof(double4)); 
+	cudaMalloc((void**)&vel_gpu, particle_n * sizeof(double3)); 
+	cudaMalloc((void**)&acl_gpu, particle_n * sizeof(double3)); 
+
+	cudaMemcpy(pos_gpu, pos_host, particle_n*sizeof(double4), cudaMemcpyHostToDevice);
+	cudaMemcpy(vel_gpu, vel_host, particle_n*sizeof(double3), cudaMemcpyHostToDevice); 
+	cudaMemcpy(acl_gpu, acl_host, particle_n*sizeof(double3), cudaMemcpyHostToDevice); 
 
 	//////////////////////////////////////////////////////////////////////////
 	////Your implementation: n-body simulator on GPU
@@ -280,6 +328,19 @@ __host__ void Test_N_Body_Simulation()
 
 	//////////////////////////////////////////////////////////////////////////
 
+	int num_blocks = particle_n/thread_count + 1 ; 
+	
+	cout<<"Total number of particles: "<<particle_n<<endl;
+	cout<<"Tracking the motion of particle "<<particle_n/2<<endl;
+
+	// Step through time 
+	for(int i=0;i<time_step_num;i++){
+
+		tileForceBodies<<<2, thread_count>>>(pos_gpu, vel_gpu, acl_gpu, epsilon_squared, dt, particle_n);
+		cudaMemcpy(pos_host, pos_gpu, particle_n*sizeof(double4), cudaMemcpyDeviceToHost);
+		cout<<"pos on timestep "<<i<<": "<<pos_host[particle_n/2].x<<", "<<pos_host[particle_n/2].y<<", "<<pos_host[particle_n/2].z<<endl;
+	}
+
 	cudaEventRecord(end);
 	cudaEventSynchronize(end);
 	cudaEventElapsedTime(&gpu_time,start,end);
@@ -288,7 +349,7 @@ __host__ void Test_N_Body_Simulation()
 	cudaEventDestroy(end);
 	//////////////////////////////////////////////////////////////////////////
 
-	out<<"R0: "<<pos_x[particle_n/2]<<" " <<pos_y[particle_n/2]<<" " <<pos_z[particle_n/2]<<endl;
+	out<<"R0: "<<pos_host[particle_n/2].x<<" " <<pos_host[particle_n/2].y<<" " <<pos_host[particle_n/2].z<<endl;
 	out<<"T1: "<<gpu_time<<endl;
 }
 
