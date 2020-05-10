@@ -109,8 +109,9 @@ __device__ double3 findAccel(const double4 ipos, const double4 jpos, //// Body c
 
 }
 
-// Computes Velocity and Position given Acceleration for a single body 
-// Given time step, position, velocity, and acceleration for that body 
+
+// Computes Velocity given Acceleration for a single body 
+// Given time step, velocity, and acceleration for that body 
 __device__ double3 findV(double3 vel, double3 acc, const double dt)
 {
 	// update velocity 
@@ -121,27 +122,9 @@ __device__ double3 findV(double3 vel, double3 acc, const double dt)
 	return vel;
 
 }
-__device__ double4 findP(double4 pos, double3 vel, const double dt)
-{
-	// update position 
-	pos.x += vel.x * dt;
-	pos.y += vel.y * dt;
-	pos.z += vel.z * dt;
 
-	return pos;
-
-}
-
-
-// Tiling Function 
-// For each body/thread 
-	// Tiles body arrays into manageable chunks -> shared memory 
-	// Calls findForce as the tile progresses through shared memory 
-	
-
-
-	// Computes final position with findVP per body 
-
+// Computes the acceleration changes to all bodies for a given time step.
+// Implements a tiling approach in order to achieve shared memory speedups.
 __global__ void tileForceBodies(double4* pos, double3 *vel, double3 *acc, 
 								const double epsilon_squared, 
 								const double dt, 
@@ -173,11 +156,9 @@ __global__ void tileForceBodies(double4* pos, double3 *vel, double3 *acc,
 			__syncthreads();
 
 			// Calculate interactions between current body & all bodies j in the domain j ∈ [i, i + blockDim) 
-
 			#pragma unroll 32
 			for(int j = 0; j < blockDim.x; j++) {
 				double4 jpos = bodyData[j];
-				// atomicAdd(&this_acc, findAccelChange(this_pos, jpos, epsilon_squared, this_acc));
 				this_acc = findAccel(this_pos, jpos, epsilon_squared, this_acc);
 			}
 			__syncthreads();
@@ -192,6 +173,7 @@ __global__ void tileForceBodies(double4* pos, double3 *vel, double3 *acc,
 	}
 }
 
+// Kernel Function to update the positions of all bodies once acceleration update has finished
 __global__ void updatePositions(double4* pos, double3* vel, const double dt){
 
 	int global_tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -340,7 +322,6 @@ __host__ void Test_N_Body_Simulation()
 	////Requirement: You need to copy data from the CPU arrays, conduct computations on the GPU, and copy the values back from GPU to CPU
 	////The final positions should be stored in the same place as the CPU n-body function, i.e., pos_x, pos_y, pos_z
 	////The correctness of your simulation will be evaluated by comparing the results (positions) with the results calculated by the default CPU implementations
-
 	//////////////////////////////////////////////////////////////////////////
 	int num_blocks = ceil((double)particle_n/(double)thread_count);
 	
