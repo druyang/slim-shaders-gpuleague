@@ -95,8 +95,7 @@ __device__ double3 findAccel(const double4 ipos, const double4 jpos, //// Body c
 	double ry = jpos.y - ipos.y;
 	double rz = jpos.z - ipos.z;
 	double r2 = rx * rx + ry * ry + rz * rz;
-	double r6_inverted = 1.0 / pow(sqrt(r2+epsilon_squared), 3); 
-	double directionless_ai = r6_inverted ;
+	double directionless_ai = 1.0 / pow(sqrt(r2+epsilon_squared), 3); 
 
 	// Compute the change in acceleration:
 	ai.x += rx * directionless_ai * jpos.w;
@@ -170,6 +169,7 @@ __global__ void tileForceBodies(double4* pos, double3 *vel, double3 *acc,
 		// Calculate interactions between current body & all bodies j in the domain j ∈ [i, i + blockDim) 
 		for(int j = 0; j < blockDim.x; j++) {
 			double4 jpos = bodyData[j];
+			// atomicAdd(&this_acc, findAccelChange(this_pos, jpos, epsilon_squared, this_acc));
 			this_acc = findAccel(this_pos, jpos, epsilon_squared, this_acc);
 		}
 		__syncthreads();
@@ -204,7 +204,7 @@ const double epsilon=1e-2;						////epsilon added in the denominator to avoid 0-
 const double epsilon_squared=epsilon*epsilon;	////epsilon squared
 
 ////We use grid_size=4 to help you debug your code, change it to a bigger number (e.g., 16, 32, etc.) to test the performance of your GPU code
-const unsigned int grid_size= 20;					////assuming particles are initialized on a background grid
+const unsigned int grid_size= 16;					////assuming particles are initialized on a background grid
 const unsigned int particle_n=pow(grid_size,3);	////assuming each grid cell has one particle at the beginning
 
 // Thread Count is min of particle_n and 512 (so as not to spawn excess threads in the case of a small number of bodies)
@@ -213,8 +213,8 @@ const unsigned int thread_count = min(particle_n, 512);
 __host__ void Test_N_Body_Simulation()
 {
 	////initialize position, velocity, acceleration, and mass
-
 	printf("Using %d threads per block\n", thread_count);
+	printf("Using %d blocks\n\n", (int)ceil(particle_n/thread_count));
 	
 	double* pos_x=new double[particle_n];
 	double* pos_y=new double[particle_n];
@@ -331,10 +331,9 @@ __host__ void Test_N_Body_Simulation()
 	////The correctness of your simulation will be evaluated by comparing the results (positions) with the results calculated by the default CPU implementations
 
 	//////////////////////////////////////////////////////////////////////////
-
-	int num_blocks = ceil(particle_n/thread_count); 
+	int num_blocks = ceil(particle_n/thread_count);
 	
-	cout<<"Total number of particles: "<<particle_n<<endl;
+	cout<<"\nTotal number of particles: "<<particle_n<<endl;
 	cout<<"Tracking the motion of particle "<<particle_n/2<<endl;
 
 	// Step through time 
@@ -342,8 +341,8 @@ __host__ void Test_N_Body_Simulation()
 
 		tileForceBodies<<<num_blocks, thread_count, thread_count*sizeof(double4)>>>(pos_gpu, vel_gpu, acl_gpu, epsilon_squared, dt, particle_n);
 		cudaMemcpy(pos_host, pos_gpu, particle_n*sizeof(double4), cudaMemcpyDeviceToHost);
+		cudaDeviceSynchronize();
 		cout<<"pos on timestep "<<i<<": "<<pos_host[particle_n/2].x<<", "<<pos_host[particle_n/2].y<<", "<<pos_host[particle_n/2].z<<endl;
-		//cudaDeviceSynchronize();
 	}
 
 	cudaEventRecord(end);
