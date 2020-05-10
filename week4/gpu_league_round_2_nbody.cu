@@ -153,6 +153,10 @@ __global__ void tileForceBodies(double4* pos, double3 *vel, double3 *acc,
 		double4 this_pos = pos[global_tid]; // w (mass), x, y, z
 		double3 this_vel = vel[global_tid]; // current body's velocity
 		double3 this_acc; // current acceleration (set via N-body computation)
+		this_acc.x = 0.0;
+		this_acc.y = 0.0;
+		this_acc.z = 0.0;
+
 
 		// 1 x blockDim shared memory
 		extern __shared__ double4 bodyData[];
