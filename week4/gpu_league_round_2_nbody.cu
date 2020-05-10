@@ -201,7 +201,7 @@ const double epsilon=1e-2;						////epsilon added in the denominator to avoid 0-
 const double epsilon_squared=epsilon*epsilon;	////epsilon squared
 
 ////We use grid_size=4 to help you debug your code, change it to a bigger number (e.g., 16, 32, etc.) to test the performance of your GPU code
-const unsigned int grid_size=16;					////assuming particles are initialized on a background grid
+const unsigned int grid_size=4;					////assuming particles are initialized on a background grid
 const unsigned int particle_n=pow(grid_size,3);	////assuming each grid cell has one particle at the beginning
 
 // Thread Count is min of particle_n and 32 (so as not to spawn excess threads in the case of a small number of bodies)
@@ -327,7 +327,7 @@ __host__ void Test_N_Body_Simulation()
 	
 	cout<<"\nTotal number of particles: "<<particle_n<<endl;
 	cout<<"Tracking the motion of particle "<<particle_n/2<<endl;
-
+	cout<<"Print statements disabled "<<endl;
 	// Step through time 
 	for(int i=0;i<time_step_num;i++){
 
@@ -337,8 +337,8 @@ __host__ void Test_N_Body_Simulation()
 		cudaDeviceSynchronize();
 		updatePositions<<<num_blocks, thread_count>>>(pos_gpu, vel_gpu, dt);
 		cudaDeviceSynchronize();
-		cudaMemcpy(pos_host, pos_gpu, particle_n*sizeof(double4), cudaMemcpyDeviceToHost);
-		cout<<"pos on timestep "<<i<<": "<<pos_host[particle_n/2].x<<", "<<pos_host[particle_n/2].y<<", "<<pos_host[particle_n/2].z<<endl;
+		// cudaMemcpy(pos_host, pos_gpu, particle_n*sizeof(double4), cudaMemcpyDeviceToHost);
+		// cout<<"pos on timestep "<<i<<": "<<pos_host[particle_n/2].x<<", "<<pos_host[particle_n/2].y<<", "<<pos_host[particle_n/2].z<<endl;
 	}
 
 	cudaEventRecord(end);
@@ -348,7 +348,7 @@ __host__ void Test_N_Body_Simulation()
 	cudaEventDestroy(start);
 	cudaEventDestroy(end);
 	//////////////////////////////////////////////////////////////////////////
-
+	cudaMemcpy(pos_host, pos_gpu, particle_n*sizeof(double4), cudaMemcpyDeviceToHost);
 	out<<"R0: "<<pos_host[particle_n/2].x<<" " <<pos_host[particle_n/2].y<<" " <<pos_host[particle_n/2].z<<endl;
 	out<<"T1: "<<gpu_time<<endl;
 }

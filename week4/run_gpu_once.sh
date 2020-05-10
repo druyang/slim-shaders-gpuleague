@@ -1,0 +1,1 @@
+nvcc -arch=sm_35 -ftz=true .\gpu_league_round_2_nbody.cu; .\a.exe
