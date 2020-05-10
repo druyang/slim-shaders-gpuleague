@@ -2,7 +2,6 @@
 ////This is the code implementation for GPU Premier League Round 2: n-body simulation
 //////////////////////////////////////////////////////////////////////////
 #include <iostream>
-#include <stdio.h>
 #include <fstream>
 #include <vector>
 #include <chrono>
@@ -205,21 +204,17 @@ const double epsilon=1e-2;						////epsilon added in the denominator to avoid 0-
 const double epsilon_squared=epsilon*epsilon;	////epsilon squared
 
 ////We use grid_size=4 to help you debug your code, change it to a bigger number (e.g., 16, 32, etc.) to test the performance of your GPU code
-const unsigned int grid_size= 16;					////assuming particles are initialized on a background grid
+const unsigned int grid_size= 20;					////assuming particles are initialized on a background grid
 const unsigned int particle_n=pow(grid_size,3);	////assuming each grid cell has one particle at the beginning
 
-// get number of threads per block to use:
-// cudaDeviceProp prop;
-// cudaGetDeviceProperties(&, 0);
-// size_t sharedMemPerBlock = prop.sharedMemPerBlock;
-// const unsigned int thread_count = floor((double)sharedMemPerBlock / (double)(sizeof(float4)));
-// printf("Using %d threads", thread_count);
-
-const unsigned int thread_count = 128;
+// Thread Count is min of particle_n and 512 (so as not to spawn excess threads in the case of a small number of bodies)
+const unsigned int thread_count = min(particle_n, 512);
 
 __host__ void Test_N_Body_Simulation()
 {
 	////initialize position, velocity, acceleration, and mass
+
+	printf("Using %d threads per block\n", thread_count);
 	
 	double* pos_x=new double[particle_n];
 	double* pos_y=new double[particle_n];
@@ -348,6 +343,7 @@ __host__ void Test_N_Body_Simulation()
 		tileForceBodies<<<num_blocks, thread_count, thread_count*sizeof(double4)>>>(pos_gpu, vel_gpu, acl_gpu, epsilon_squared, dt, particle_n);
 		cudaMemcpy(pos_host, pos_gpu, particle_n*sizeof(double4), cudaMemcpyDeviceToHost);
 		cout<<"pos on timestep "<<i<<": "<<pos_host[particle_n/2].x<<", "<<pos_host[particle_n/2].y<<", "<<pos_host[particle_n/2].z<<endl;
+		//cudaDeviceSynchronize();
 	}
 
 	cudaEventRecord(end);
@@ -364,6 +360,7 @@ __host__ void Test_N_Body_Simulation()
 
 int main()
 {
+
 	if(name::team=="Team_X"){
 		printf("\nPlease specify your team name and team member names in name::team and name::author to start.\n");
 		return 0;
