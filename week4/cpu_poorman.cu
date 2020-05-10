@@ -99,7 +99,7 @@ const double epsilon=1e-2;						////epsilon added in the denominator to avoid 0-
 const double epsilon_squared=epsilon*epsilon;	////epsilon squared
 
 ////We use grid_size=4 to help you debug your code, change it to a bigger number (e.g., 16, 32, etc.) to test the performance of your GPU code
-const unsigned int grid_size=16;					////assuming particles are initialized on a background grid
+const unsigned int grid_size=32;					////assuming particles are initialized on a background grid
 const unsigned int particle_n=pow(grid_size,3);	////assuming each grid cell has one particle at the beginning
 
 __host__ void Test_N_Body_Simulation()
@@ -115,7 +115,6 @@ __host__ void Test_N_Body_Simulation()
 		for(unsigned int j=0;j<grid_size;j++){
 			for(unsigned int i=0;i<grid_size;i++){
                 unsigned int index=k*grid_size*grid_size+j*grid_size+i;
-                std::cout<<index<<std::endl; 
 				pos_x[index]=dx*(double)i;
 				pos_y[index]=dx*(double)j;
 				pos_z[index]=dx*(double)k;
