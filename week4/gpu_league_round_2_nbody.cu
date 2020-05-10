@@ -53,7 +53,7 @@ __host__ void N_Body_Simulation_CPU_Poorman(double* pos_x,double* pos_y,double* 
 			double dis_squared=rx*rx+ry*ry+rz*rz;
 			double dis_test = dis_squared+epsilon_squared; 
 			double dis_6 = dis_test * dis_test * dis_test; 
-			double one_over_dis_cube=1.0/sqrt(dis_6); 
+			double one_over_dis_cube=rsqrt(dis_6); 
 			double ax=mass[j]*rx*one_over_dis_cube;
 			double ay=mass[j]*ry*one_over_dis_cube;
 			double az=mass[j]*rz*one_over_dis_cube;
@@ -89,22 +89,21 @@ __device__ double3 findAccel(const double4 ipos, const double4 jpos, //// Body c
 {
 	// ipos -> position (and mass) of body i
 	// jpos -> position (and mass) of body j
-	// epsilon_sqared -> softening factor
+	// epsilon_squared -> softening factor
 	// ai -> acceleration of body i to update
 
 	// Compute the Denominator of the Acceleration Update
 	double rx = jpos.x - ipos.x;
 	double ry = jpos.y - ipos.y;
 	double rz = jpos.z - ipos.z;
-	double r2 = rx * rx + ry * ry + rz * rz;
-	double r_new = r2+epsilon_squared; 
-	double r_6 = r_new * r_new * r_new; 
-	double directionless_ai = 1.0 / sqrt(r_6); 
+	double r2 = rx * rx + ry * ry + rz * rz + epsilon_squared;
+	double r_6 = r2 * r2 * r2; 
+	double directionless_ai = jpos.w * rsqrt(r_6); 
 
 	// Compute the change in acceleration:
-	ai.x += rx * directionless_ai * jpos.w;
-	ai.y += ry * directionless_ai * jpos.w;
-	ai.z += rz * directionless_ai * jpos.w;
+	ai.x += rx * directionless_ai;
+	ai.y += ry * directionless_ai;
+	ai.z += rz * directionless_ai;
 
 	return ai;
 
@@ -184,15 +183,22 @@ __global__ void tileForceBodies(double4* pos, double3 *vel, double3 *acc,
 			__syncthreads();
 		}
 
-		// Find position and velocity 
+		// Find velocity 
 		this_vel = findV(this_vel, this_acc, dt);
-		this_pos = findP(this_pos, this_vel, dt);
 
 		// write back to global memory:
 		acc[global_tid] = this_acc;
 		vel[global_tid] = this_vel;
-		pos[global_tid] = this_pos;
 	}
+}
+
+__global__ void updatePositions(double4* pos, double3* vel, const double dt){
+
+	int global_tid = blockIdx.x * blockDim.x + threadIdx.x;
+	pos[global_tid].x += vel[global_tid].x * dt;
+	pos[global_tid].y += vel[global_tid].y * dt;
+	pos[global_tid].z += vel[global_tid].z * dt;
+
 }
 
 
@@ -213,13 +219,12 @@ const double epsilon=1e-2;						////epsilon added in the denominator to avoid 0-
 const double epsilon_squared=epsilon*epsilon;	////epsilon squared
 
 ////We use grid_size=4 to help you debug your code, change it to a bigger number (e.g., 16, 32, etc.) to test the performance of your GPU code
-const unsigned int grid_size= 16;					////assuming particles are initialized on a background grid
+const unsigned int grid_size=10;					////assuming particles are initialized on a background grid
 const unsigned int particle_n=pow(grid_size,3);	////assuming each grid cell has one particle at the beginning
 
-// Thread Count is min of particle_n and 512 (so as not to spawn excess threads in the case of a small number of bodies)
-const unsigned int thread_count = min(particle_n, 128);
+// Thread Count is min of particle_n and 32 (so as not to spawn excess threads in the case of a small number of bodies)
+const unsigned int thread_count = min(particle_n, 32);
 //const unsigned int thread_count = 128;
-
 
 __host__ void Test_N_Body_Simulation()
 {
@@ -345,9 +350,13 @@ __host__ void Test_N_Body_Simulation()
 	// Step through time 
 	for(int i=0;i<time_step_num;i++){
 
+		// Here, we synchronize global memory before updating positions to avoid
+		// Read after write conflicts for large values of N:
 		tileForceBodies<<<num_blocks, thread_count, thread_count * sizeof(double4)>>>(pos_gpu, vel_gpu, acl_gpu, epsilon_squared, dt, particle_n);
-		cudaMemcpy(pos_host, pos_gpu, particle_n*sizeof(double4), cudaMemcpyDeviceToHost);
 		cudaDeviceSynchronize();
+		updatePositions<<<num_blocks, thread_count>>>(pos_gpu, vel_gpu, dt);
+		cudaDeviceSynchronize();
+		cudaMemcpy(pos_host, pos_gpu, particle_n*sizeof(double4), cudaMemcpyDeviceToHost);
 		cout<<"pos on timestep "<<i<<": "<<pos_host[particle_n/2].x<<", "<<pos_host[particle_n/2].y<<", "<<pos_host[particle_n/2].z<<endl;
 	}
 
