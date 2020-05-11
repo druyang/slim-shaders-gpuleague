@@ -201,12 +201,11 @@ const double epsilon=1e-2;						////epsilon added in the denominator to avoid 0-
 const double epsilon_squared=epsilon*epsilon;	////epsilon squared
 
 ////We use grid_size=4 to help you debug your code, change it to a bigger number (e.g., 16, 32, etc.) to test the performance of your GPU code
-const unsigned int grid_size=4;					////assuming particles are initialized on a background grid
+const unsigned int grid_size=16;					////assuming particles are initialized on a background grid
 const unsigned int particle_n=pow(grid_size,3);	////assuming each grid cell has one particle at the beginning
 
 // Thread Count is min of particle_n and 32 (so as not to spawn excess threads in the case of a small number of bodies)
-const unsigned int thread_count = min(particle_n, 32);
-//const unsigned int thread_count = 128;
+const unsigned int thread_count = min(particle_n, 128);
 
 __host__ void Test_N_Body_Simulation()
 {
@@ -256,12 +255,14 @@ __host__ void Test_N_Body_Simulation()
 	auto cpu_start=chrono::system_clock::now();
 	cout<<"Total number of particles: "<<particle_n<<endl;
 	cout<<"Tracking the motion of particle "<<particle_n/2<<endl;
+
 	for(int i=0;i<time_step_num;i++){
 
 		N_Body_Simulation_CPU_Poorman(pos_x,pos_y,pos_z,vel_x,vel_y,vel_z,acl_x,acl_y,acl_z,mass,particle_n,dt,epsilon_squared);
 		cout<<"pos on timestep "<<i<<": "<<pos_x[particle_n/2]<<", "<<pos_y[particle_n/2]<<", "<<pos_z[particle_n/2]<<endl;
 
 	}
+
 	auto cpu_end=chrono::system_clock::now();
 	chrono::duration<double> cpu_time=cpu_end-cpu_start;
 	cout<<"CPU runtime: "<<cpu_time.count()*1000.<<" ms."<<endl;
@@ -328,15 +329,21 @@ __host__ void Test_N_Body_Simulation()
 	cout<<"\nTotal number of particles: "<<particle_n<<endl;
 	cout<<"Tracking the motion of particle "<<particle_n/2<<endl;
 	cout<<"Print statements disabled "<<endl;
+
 	// Step through time 
 	for(int i=0;i<time_step_num;i++){
 
 		// Here, we synchronize global memory before updating positions to avoid
-		// Read after write conflicts for large values of N:
-		tileForceBodies<<<num_blocks, thread_count, thread_count * sizeof(double4)>>>(pos_gpu, vel_gpu, acl_gpu, epsilon_squared, dt, particle_n);
+		// Read-after-write conflicts for large values of particle_n
+		tileForceBodies<<<num_blocks, thread_count, thread_count * sizeof(double4)>>>
+			(pos_gpu, vel_gpu, acl_gpu, epsilon_squared, dt, particle_n);
+	
+		// Synchronize and write to global memory
 		cudaDeviceSynchronize();
 		updatePositions<<<num_blocks, thread_count>>>(pos_gpu, vel_gpu, dt);
 		cudaDeviceSynchronize();
+		
+		// Print Results to console (comment out to test performance)
 		// cudaMemcpy(pos_host, pos_gpu, particle_n*sizeof(double4), cudaMemcpyDeviceToHost);
 		// cout<<"pos on timestep "<<i<<": "<<pos_host[particle_n/2].x<<", "<<pos_host[particle_n/2].y<<", "<<pos_host[particle_n/2].z<<endl;
 	}
@@ -347,8 +354,13 @@ __host__ void Test_N_Body_Simulation()
 	printf("\nGPU runtime: %.4f ms\n",gpu_time);
 	cudaEventDestroy(start);
 	cudaEventDestroy(end);
+
 	//////////////////////////////////////////////////////////////////////////
+	// One Memcpy at the end of all kernel calls to return data to the host:
 	cudaMemcpy(pos_host, pos_gpu, particle_n*sizeof(double4), cudaMemcpyDeviceToHost);
+
+	// NOTE: Since we used our own double4 to store the values of our particles, we altered the write statement here
+	// to reflect the way that we stored our values.
 	out<<"R0: "<<pos_host[particle_n/2].x<<" " <<pos_host[particle_n/2].y<<" " <<pos_host[particle_n/2].z<<endl;
 	out<<"T1: "<<gpu_time<<endl;
 }
