@@ -174,7 +174,7 @@ __global__ void tileForceBodies(double4* pos, double3 *vel, double3 *acc,
 }
 
 // Kernel Function to update the positions of all bodies once acceleration update has finished
-__global__ void updatePositions(double4* pos, double3* vel, const double dt){
+__global__ void updatePositions(double4* pos, double3* vel, const double dt) {
 
 	int global_tid = blockIdx.x * blockDim.x + threadIdx.x;
 	pos[global_tid].x += vel[global_tid].x * dt;
@@ -201,17 +201,17 @@ const double epsilon=1e-2;						////epsilon added in the denominator to avoid 0-
 const double epsilon_squared=epsilon*epsilon;	////epsilon squared
 
 ////We use grid_size=4 to help you debug your code, change it to a bigger number (e.g., 16, 32, etc.) to test the performance of your GPU code
-const unsigned int grid_size=16;					////assuming particles are initialized on a background grid
+const unsigned int grid_size=20;					////assuming particles are initialized on a background grid
 const unsigned int particle_n=pow(grid_size,3);	////assuming each grid cell has one particle at the beginning
 
 // Thread Count is min of particle_n and 32 (so as not to spawn excess threads in the case of a small number of bodies)
-const unsigned int thread_count = min(particle_n, 128);
+const unsigned int thread_count = min(particle_n, 32);
 
 __host__ void Test_N_Body_Simulation()
 {
 	////initialize position, velocity, acceleration, and mass
-	printf("Using %d threads per block\n", thread_count);
-	printf("Using %d blocks\n\n", (int)ceil(double(particle_n)/double(thread_count)));
+	//printf("Using %d threads per block\n", thread_count);
+	//printf("Using %d blocks\n\n", (int)ceil(double(particle_n)/double(thread_count)));
 	
 	double* pos_x=new double[particle_n];
 	double* pos_y=new double[particle_n];
@@ -344,8 +344,8 @@ __host__ void Test_N_Body_Simulation()
 		cudaDeviceSynchronize();
 		
 		// Print Results to console (comment out to test performance)
-		// cudaMemcpy(pos_host, pos_gpu, particle_n*sizeof(double4), cudaMemcpyDeviceToHost);
-		// cout<<"pos on timestep "<<i<<": "<<pos_host[particle_n/2].x<<", "<<pos_host[particle_n/2].y<<", "<<pos_host[particle_n/2].z<<endl;
+		cudaMemcpy(pos_host, pos_gpu, particle_n*sizeof(double4), cudaMemcpyDeviceToHost);
+		cout<<"pos on timestep "<<i<<": "<<pos_host[particle_n/2].x<<", "<<pos_host[particle_n/2].y<<", "<<pos_host[particle_n/2].z<<endl;
 	}
 
 	cudaEventRecord(end);
