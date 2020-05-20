@@ -240,6 +240,66 @@ void Test_CPU_Solvers()
 //////////////////////////////////////////////////////////////////////////
 ////TODO 1: your GPU variables and functions start here
 
+
+__global__ void GPU_Solver(XMATRIX, BMATRIX, int* residual, int row_size, int x_numcells){
+
+	int global_i = blockIdx.x * blockDim.x + threadIdx.x;
+	int global_j = blockIdx.y * blockDim.y + threadIdx.y;
+	int i = threadIdx.x + 1
+	int j = threadIdx.y + 1;
+
+	const int pos_u = i - 1;
+	const int pos_d = i + 1;
+	const int pos_l = j - 1;
+	const int pos_r = j + 1;
+
+	extern __shared__ void data[]
+	double** xMatrixData = &data[0]; // TODO: cuSparse in the future 
+
+	// additional 2 on each side to account for neighbors outside of blockdim
+	double** bMatrixData = &data[(blockDim.x + 2)*(blockDim.y + 2)]; 	
+	xMatrixData[i][j] = XMATRIX[I(global_i, global_j)]; 
+	bMatrixData[i][j] = BMATRIX[I(global_i, global_j)]; 
+
+	// load left/right border data here
+	if (i == 0){
+		xMatrixData[i-1][j] = XMATRIX[I(global_i-1, global_j)];
+	}
+	else if (i == blockDim.x){
+		// load -1 or +1 data
+		xMatrixData[i+1][j] = XMATRIX[I(global_i+1, global_j)];
+	}
+
+	// load up/down border data 
+	if (j == 0 ){
+		xMatrixData[i][j-1] = XMATRIX[I(global_i, global_j-1)];
+	}
+	else if (j == blockDim.y){
+		xMatrixData[i][j+1] = XMATRIX[I(global_i, global_j+1)];
+	}
+	__syncthreads(); 
+
+
+	// update x values 
+	xMatrixData[i][j]=(bMatrixData[i][j] + xMatrixData[i][j]+xMatrixData[i+1][j]+xMatrixData[i][j-1]+xMatrixData[i][j+1])/4.0;
+
+	__syncthreads(); 
+
+	float residual = 0.0f; 
+	// find residual 
+
+	residual+=pow(4.0*xMatrixData[i][j] - xMatrixData[i-1,j]-x[i+1,j]-xMatrixData[I(i,j-1)]-xMatrixData[I(i,j+1)]-bMatrixData[I(i,j)],2);
+
+
+
+
+
+}
+
+__global__ void find_Residual(){
+
+}
+
 ////Your implementations end here
 //////////////////////////////////////////////////////////////////////////
 
@@ -266,6 +326,8 @@ void Test_GPU_Solver()
 				x[I(i,j)]=(double)(i*i+j*j);	////set boundary condition for x
 		}
 	}
+
+
 
 	cudaEvent_t start,end;
 	cudaEventCreate(&start);
