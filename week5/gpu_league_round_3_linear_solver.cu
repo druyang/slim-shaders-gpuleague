@@ -241,62 +241,72 @@ void Test_CPU_Solvers()
 ////TODO 1: your GPU variables and functions start here
 
 
-__global__ void GPU_Solver(XMATRIX, BMATRIX, int* residual, int row_size, int x_numcells){
+__global__ void GPU_Solver(double *xr, const double *b, float* residual){
 
 	int global_i = blockIdx.x * blockDim.x + threadIdx.x;
 	int global_j = blockIdx.y * blockDim.y + threadIdx.y;
-	int i = threadIdx.x + 1
-	int j = threadIdx.y + 1;
+	int i = threadIdx.x;
+	int j = threadIdx.y;
 
-	const int pos_u = i - 1;
-	const int pos_d = i + 1;
-	const int pos_l = j - 1;
-	const int pos_r = j + 1;
+//	int i = threadIdx.x + 1;
+//	int j = threadIdx.y + 1;
+//	extern __shared__ void* data[];
+//	double** xMatrixData = (double**) &data[0]; // TODO: cuSparse in the future 
+//
+//	// additional 2 on each side to account for neighbors outside of blockdim
+//	double** bMatrixData = (double**) &data[(blockDim.x + 2)*(blockDim.y + 2)];
+//	xMatrixData[i][j] = xr[I(global_i, global_j)]; 
+//	bMatrixData[i][j] = b[I(global_i, global_j)]; 
+//	
+//	// load left/right border data here
+//	if (i == 1) xMatrixData[i-1][j] = xr[I(global_i-1, global_j)];
+//	else if (i == blockDim.x + 1) xMatrixData[i+1][j] = xr[I(global_i+1, global_j)];
+//	
+//	// load top/bottom border data
+//	if (j == 1) xMatrixData[i][j] = xr[I(global_i, global_j-1)];
+//	else if (j == blockDim.y + 1) xMatrixData[i][j+1] = xr[I(global_i, global_j+1)];
+	
+	extern __shared__ double data[];
 
-	extern __shared__ void data[]
-	double** xMatrixData = &data[0]; // TODO: cuSparse in the future 
+	double** xw = (double**) &data[0]; // Matrix
+	float* block_residual = (float*) &data[blockDim.x * blockDim.y]; // to store residual
 
-	// additional 2 on each side to account for neighbors outside of blockdim
-	double** bMatrixData = &data[(blockDim.x + 2)*(blockDim.y + 2)]; 	
-	xMatrixData[i][j] = XMATRIX[I(global_i, global_j)]; 
-	bMatrixData[i][j] = BMATRIX[I(global_i, global_j)]; 
+	//////////////////////
+	// update xw values //
+	/////////////////////
+	xw[i][j]=(b[I(global_i,global_j)]+xr[I(global_i-1,global_j)]+xr[I(global_i+1,global_j)]
+			+xr[I(global_i,global_j-1)]+xr[I(global_i,global_j+1)])/4.0;
 
-	// load left/right border data here
-	if (i == 0){
-		xMatrixData[i-1][j] = XMATRIX[I(global_i-1, global_j)];
-	}
-	else if (i == blockDim.x){
-		// load -1 or +1 data
-		xMatrixData[i+1][j] = XMATRIX[I(global_i+1, global_j)];
-	}
+	__syncthreads();
+	
+	///////////////////////
+	// calculate residual//
+	///////////////////////
+	if (global_i == 0 && global_j == 0) *residual = 0.f;
+	if (i == 0 && j == 0) block_residual[0] = 0;
+	__syncthreads();
 
-	// load up/down border data 
-	if (j == 0 ){
-		xMatrixData[i][j-1] = XMATRIX[I(global_i, global_j-1)];
-	}
-	else if (j == blockDim.y){
-		xMatrixData[i][j+1] = XMATRIX[I(global_i, global_j+1)];
-	}
+	float residual_add = 4.0 * xw[i][j] - xw[i-1][j] - xw[i+1][j] - xw[i][j-1] - xw[i][j+1] - b[I(i,j)];
+	residual_add *= residual_add; // ^2
+
+	// Accumulate residual in block 
+	atomicAdd(&block_residual[0], residual_add);
 	__syncthreads(); 
 
-
-	// update x values 
-	xMatrixData[i][j]=(bMatrixData[i][j] + xMatrixData[i][j]+xMatrixData[i+1][j]+xMatrixData[i][j-1]+xMatrixData[i][j+1])/4.0;
-
+	// send residual back to global memory:
+	if (i == 0 && j == 0) atomicAdd(residual, block_residual[0]);
 	__syncthreads(); 
-
-	float residual = 0.0f; 
-	// find residual 
-
-	residual+=pow(4.0*xMatrixData[i][j] - xMatrixData[i-1,j]-x[i+1,j]-xMatrixData[I(i,j-1)]-xMatrixData[I(i,j+1)]-bMatrixData[I(i,j)],2);
-
-
-
+	
+	///////////////////
+	// swap buffers: //
+	///////////////////
+	xr[I(global_i, global_j)] = xw[i][j];
 
 
 }
 
-__global__ void find_Residual(){
+__device__ void find_Residual(){
+
 
 }
 
