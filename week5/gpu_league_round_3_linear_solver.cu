@@ -371,6 +371,9 @@ void Test_GPU_Solver() {
   cudaEventDestroy(end);
   //////////////////////////////////////////////////////////////////////////
 
+  cudaMemcpy(x, x_gpu, s * sizeof(double), cudaMemcpyDeviceToHost);
+  cudaMemcpy(b, b_gpu, s * sizeof(double), cudaMemcpyDeviceToHost);
+
   ////output x
   if (verbose) {
     cout << "\n\nx for your GPU solver:\n";
