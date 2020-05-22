@@ -12,10 +12,9 @@ using namespace std;
 //////////////////////////////////////////////////////////////////////////
 
 namespace name {
-std::string team = "";
-std::string author_1 = "Name_1";
-std::string author_2 = "Name_2";
-std::string author_3 = "Name_3"; ////optional
+std::string team = "Slim_shaders";
+std::string author_1 = "Matthew Kenney";
+std::string author_2 = "Andrw Yang";
 };                               // namespace name
 
 //////////////////////////////////////////////////////////////////////////
@@ -30,14 +29,16 @@ std::string author_3 = "Name_3"; ////optional
 /// implementations
 //////////////////////////////////////////////////////////////////////////
 
-const int n =
-    8; ////grid size, we will change this value to up to 256 to test your code
+const int n = 16; ////grid size, we will change this value to up to 128 to test your code
 const int g = 1;                                ////padding size
 const int s = (n + 2 * g) * (n + 2 * g);        ////array size
 #define I(i, j) (i + g) * (n + 2 * g) + (j + g) ////2D coordinate -> array index
 #define B(i, j) i < 0 || i >= n || j < 0 || j >= n ////check boundary
 const bool verbose = true; ////set false to turn off print for x and residual
 const double tolerance = 1e-3; ////tolerance for the iterative solver
+
+const int blockDimX = 8;
+#define BlockI(i, j) (i + g) * (blockDimX + 2 * g) + (j + g) ////2D coordinate -> array index
 
 //////////////////////////////////////////////////////////////////////////
 ////The following are three sample implementations for CPU iterative solvers
@@ -205,52 +206,52 @@ void Test_CPU_Solvers() {
   }
   cout << "\n\n";
 
-  //////////////////////////////////////////////////////////////////////////
-  ////test Gauss-Seidel
-  memset(x, 0x0000, sizeof(double) * s);
-  for (int i = -1; i <= n; i++) {
-    for (int j = -1; j <= n; j++) {
-      if (B(i, j))
-        x[I(i, j)] = (double)(i * i + j * j); ////set boundary condition for x
-    }
-  }
-
-  Gauss_Seidel_Solver(x, b);
-
-  if (verbose) {
-    cout << "\n\nx for Gauss-Seidel:\n";
-    for (int i = 0; i < n; i++) {
-      for (int j = 0; j < n; j++) {
-        cout << x[I(i, j)] << ", ";
-      }
-      cout << std::endl;
-    }
-  }
-  cout << "\n\n";
-
-  //////////////////////////////////////////////////////////////////////////
-  ////test Red-Black Gauss-Seidel
-  memset(x, 0x0000, sizeof(double) * s);
-  for (int i = -1; i <= n; i++) {
-    for (int j = -1; j <= n; j++) {
-      if (B(i, j))
-        x[I(i, j)] = (double)(i * i + j * j); ////set boundary condition for x
-    }
-  }
-
-  Red_Black_Gauss_Seidel_Solver(x, b);
-
-  if (verbose) {
-    cout << "\n\nx for Red-Black Gauss-Seidel:\n";
-    for (int i = 0; i < n; i++) {
-      for (int j = 0; j < n; j++) {
-        cout << x[I(i, j)] << ", ";
-      }
-      cout << std::endl;
-    }
-  }
-  cout << "\n\n";
-
+//  //////////////////////////////////////////////////////////////////////////
+//  ////test Gauss-Seidel
+//  memset(x, 0x0000, sizeof(double) * s);
+//  for (int i = -1; i <= n; i++) {
+//    for (int j = -1; j <= n; j++) {
+//      if (B(i, j))
+//        x[I(i, j)] = (double)(i * i + j * j); ////set boundary condition for x
+//    }
+//  }
+//
+//  Gauss_Seidel_Solver(x, b);
+//
+//  if (verbose) {
+//    cout << "\n\nx for Gauss-Seidel:\n";
+//    for (int i = 0; i < n; i++) {
+//      for (int j = 0; j < n; j++) {
+//        cout << x[I(i, j)] << ", ";
+//      }
+//      cout << std::endl;
+//    }
+//  }
+//  cout << "\n\n";
+//
+//  //////////////////////////////////////////////////////////////////////////
+//  ////test Red-Black Gauss-Seidel
+//  memset(x, 0x0000, sizeof(double) * s);
+//  for (int i = -1; i <= n; i++) {
+//    for (int j = -1; j <= n; j++) {
+//      if (B(i, j))
+//        x[I(i, j)] = (double)(i * i + j * j); ////set boundary condition for x
+//    }
+//  }
+//
+//  Red_Black_Gauss_Seidel_Solver(x, b);
+//
+//  if (verbose) {
+//    cout << "\n\nx for Red-Black Gauss-Seidel:\n";
+//    for (int i = 0; i < n; i++) {
+//      for (int j = 0; j < n; j++) {
+//        cout << x[I(i, j)] << ", ";
+//      }
+//      cout << std::endl;
+//    }
+//  }
+//  cout << "\n\n";
+//
   //////////////////////////////////////////////////////////////////////////
 
   delete[] x;
@@ -267,23 +268,6 @@ __global__ void GPU_Solver(double *xr, const double *b, float* residual, int xw_
 	int i = threadIdx.x;
 	int j = threadIdx.y;
 
-//	int i = threadIdx.x + 1;
-//	int j = threadIdx.y + 1;
-//	extern __shared__ void* data[];
-//	double** xMatrixData = (double**) &data[0]; // TODO: cuSparse in the future 
-//
-//	// additional 2 on each side to account for neighbors outside of blockdim
-//	double** bMatrixData = (double**) &data[(blockDim.x + 2)*(blockDim.y + 2)];
-//	xMatrixData[i][j] = xr[I(global_i, global_j)]; 
-//	bMatrixData[i][j] = b[I(global_i, global_j)]; 
-//	
-//	// load left/right border data here
-//	if (i == 1) xMatrixData[i-1][j] = xr[I(global_i-1, global_j)];
-//	else if (i == blockDim.x + 1) xMatrixData[i+1][j] = xr[I(global_i+1, global_j)];
-//	
-//	// load top/bottom border data
-//	if (j == 1) xMatrixData[i][j] = xr[I(global_i, global_j-1)];
-//	else if (j == blockDim.y + 1) xMatrixData[i][j+1] = xr[I(global_i, global_j+1)];
 
 	if (global_i >= n || global_j >= n) return;
 	
@@ -294,20 +278,40 @@ __global__ void GPU_Solver(double *xr, const double *b, float* residual, int xw_
 
 	//////////////////////
 	// update xw values //
-	/////////////////////
-	xw[I(i,j)]=(b[I(global_i,global_j)]+xr[I(global_i-1,global_j)]+xr[I(global_i+1,global_j)]
-			+xr[I(global_i,global_j-1)]+xr[I(global_i,global_j+1)])/4.0;
+	//////////////////////
+	xw[BlockI(i,j)]=(b[I(global_i,global_j)]+xr[I(global_i-1,global_j)]+xr[I(global_i+1,global_j)]
+      +xr[I(global_i,global_j-1)]+xr[I(global_i,global_j+1)])/4.0;
+ 
 
-	__syncthreads();
+    // Load cells that border the block 
+    if (i == 0) {
+      xw[BlockI(i-1,j)]=(b[I(global_i-1,global_j)]+xr[I(global_i-2,global_j)]+xr[I(global_i,global_j)]
+        +xr[I(global_i-1,global_j-1)]+xr[I(global_i-1,global_j+1)])/4.0;
+    }
+    else if(i == blockDim.x){
+      xw[BlockI(i+1,j)]=(b[I(global_i+1,global_j)]+xr[I(global_i,global_j)]+xr[I(global_i+2,global_j)]
+      +xr[I(global_i+1,global_j-1)]+xr[I(global_i+1,global_j+1)])/4.0;
+    }
+    
+    if (j == 0) {
+    	xw[BlockI(i,j-1)]=(b[I(global_i,global_j-1)]+xr[I(global_i-1,global_j-1)]+xr[I(global_i+1,global_j-1)]
+        +xr[I(global_i,global_j-2)]+xr[I(global_i,global_j)])/4.0;
+    }
+  
+    else if (j == blockDim.y){
+      xw[BlockI(i,j+1)]=(b[I(global_i,global_j+1)]+xr[I(global_i-1,global_j+1)]+xr[I(global_i+1,global_j+1)]
+      +xr[I(global_i,global_j)]+xr[I(global_i,global_j+2)])/4.0;
+    }
+  	__syncthreads();
 	
 	///////////////////////
 	// calculate residual//
 	///////////////////////
 	if (global_i == 0 && global_j == 0) *residual = 0.f;
-	if (i == 0 && j == 0) block_residual[0] = 0;
+	block_residual[i * blockDim.x + j] = 0.f; // reset residual (fails for some unknown reason)
 	__syncthreads();
-
-	float residual_add = 4.0 * xw[I(i,j)] - xw[I(i-1,j)] - xw[I(i+1,j)] - xw[I(i,j-1)] - xw[I(i,j+1)] - b[I(i,j)];
+	
+	float residual_add = 4.0 * xw[BlockI(i,j)] - xw[BlockI(i-1,j)] - xw[BlockI(i+1,j)] - xw[BlockI(i,j-1)] - xw[BlockI(i,j+1)] - b[I(i,j)];
 	residual_add *= residual_add; // ^2
 
 	// Accumulate residual in block 
@@ -316,17 +320,17 @@ __global__ void GPU_Solver(double *xr, const double *b, float* residual, int xw_
 
 	// send residual back to global memory:
 	if (i == 0 && j == 0) atomicAdd(residual, block_residual[0]);
-	__syncthreads(); 
+
+
+	// if (global_i == 0 && global_j ==0) printf("res: %10\n", residual);
+	__syncthreads();
 	
 	///////////////////
 	// swap buffers: //
 	///////////////////
-	xr[I(global_i, global_j)] = xw[I(i,j)];
+	xr[I(global_i, global_j)] = xw[BlockI(i,j)];
 
 
-}
-
-__device__ void find_Residual(){
 }
 
 ////Your implementations end here
@@ -386,17 +390,34 @@ void Test_GPU_Solver() {
   /// by the residual (<1e-3)
   //////////////////////////////////////////////////////////////////////////
 
-  int thread_x = 8;
-  int thread_y = 8;
+  int thread_x = blockDimX;
+  int thread_y = blockDimX;
   int block_x = ceil((double)n / (double)thread_x);
   int block_y = ceil((double)n / (double)thread_y);
 
   int xw_size= (thread_x + 2 * g) * (thread_y + 2 * g);
   int residual_arr_size = thread_x * thread_y;
 
-  GPU_Solver<<<dim3(block_x, block_y), dim3(thread_x, thread_y), xw_size * sizeof(double) +
-	  			  residual_arr_size * sizeof(float)>>>(x_gpu, b_gpu, residual_gpu, xw_size);
+  
+  int max_num = 1e5;     ////max iteration number
+  int iter_num = 0;
+  do{
 
+    residual_host = 0.f;
+    cudaMemcpy(residual_gpu, &residual_host, sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(&residual_host, residual_gpu, sizeof(float), cudaMemcpyDeviceToHost);
+    cout << "reset res: " << residual_host << endl;
+
+    GPU_Solver<<<dim3(block_x, block_y), dim3(thread_x, thread_y), xw_size * sizeof(double) +
+              residual_arr_size * sizeof(float)>>>(x_gpu, b_gpu, residual_gpu, xw_size);
+
+    cudaDeviceSynchronize();
+    cudaMemcpy(&residual_host, residual_gpu, sizeof(float), cudaMemcpyDeviceToHost);
+    cout << "res: " << residual_host << endl;
+    iter_num += 1;
+
+
+  } while ((double) residual_host > tolerance && iter_num < 20);
 
   cudaEventRecord(end);
   cudaEventSynchronize(end);
@@ -454,7 +475,7 @@ int main()
 		return 0;
 	}
 
-	//Test_CPU_Solvers();	////You may comment out this line to run your GPU solver only
+	Test_CPU_Solvers();	////You may comment out this line to run your GPU solver only
 	Test_GPU_Solver();	////Test function for your own GPU implementation
 
 	return 0;
