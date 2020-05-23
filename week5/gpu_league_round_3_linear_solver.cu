@@ -261,104 +261,84 @@ void Test_CPU_Solvers() {
 //////////////////////////////////////////////////////////////////////////
 ////TODO 1: your GPU variables and functions start here
 
-__global__ void GPU_Solver(double *xr, const double *b, float* residual, int xw_size) {
+__global__ void GPU_Solver(double *xr, const double *b) {
 
 	int global_i = blockIdx.x * blockDim.x + threadIdx.x;
 	int global_j = blockIdx.y * blockDim.y + threadIdx.y;
 	int i = threadIdx.x;
 	int j = threadIdx.y;
-
-
-	if (global_i >= n || global_j >= n) return;
 	
-	extern __shared__ double data[];
+	
+	if (global_i >= n || global_j >= n) return;
 
-	double* xw = (double*) &data[0]; // Matrix
-	float* block_residual = (float*) &data[xw_size]; // to store residual
+	extern __shared__ double xw[]; // update to X matrix
 
 	//////////////////////
 	// update xw values //
 	//////////////////////
 	xw[BlockI(i,j)]=(b[I(global_i,global_j)]+xr[I(global_i-1,global_j)]+xr[I(global_i+1,global_j)]
-      +xr[I(global_i,global_j-1)]+xr[I(global_i,global_j+1)])/4.0;
- 
-
-  // Load cells that border the block 
-  if (i == 0) {
-    if(global_i == 0) xw[BlockI(i-1,j)] = 0.0;
-    else xw[BlockI(i-1,j)]=(b[I(global_i-1,global_j)]+xr[I(global_i-2,global_j)]+xr[I(global_i,global_j)]
-      +xr[I(global_i-1,global_j-1)]+xr[I(global_i-1,global_j+1)])/4.0;
-  }
-  else if(i == blockDim.x - 1){
-    if(global_i == n - 1) xw[BlockI(i+1,j)] = 0.0;
-    else xw[BlockI(i+1,j)]=(b[I(global_i+1,global_j)]+xr[I(global_i,global_j)]+xr[I(global_i+2,global_j)]
-    +xr[I(global_i+1,global_j-1)]+xr[I(global_i+1,global_j+1)])/4.0;
-  }
-  if (j == 0) {
-    if (global_j == 0) xw[BlockI(i,j-1)] = 0.0;
-  	else xw[BlockI(i,j-1)]=(b[I(global_i,global_j-1)]+xr[I(global_i-1,global_j-1)]+xr[I(global_i+1,global_j-1)]
-      +xr[I(global_i,global_j-2)]+xr[I(global_i,global_j)])/4.0;
-  }
-  else if (j == blockDim.y - 1){
-    if (global_j == n - 1) xw[BlockI(i,j+1)] = 0.0;
-    else xw[BlockI(i,j+1)]=(b[I(global_i,global_j+1)]+xr[I(global_i-1,global_j+1)]+xr[I(global_i+1,global_j+1)]
-    +xr[I(global_i,global_j)]+xr[I(global_i,global_j+2)])/4.0;
-  }
-  __syncthreads();
+	  +xr[I(global_i,global_j-1)]+xr[I(global_i,global_j+1)])/4.0;
 	
-	///////////////////////
-	// calculate residual//
-	///////////////////////
-  if (global_i == 0 && global_j == 0) *residual = 0.0f;
-  __syncthreads();
-
-  if (i == 0 && j == 0) {
-    block_residual[0] = 0.0f;
-  }
-  __syncthreads();
-
-	block_residual[i * blockDim.x + j] = 0.0f; // reset residual (fails for some unknown reason)
-  __syncthreads();
-
-  // if (global_i == 0 && global_j == 0) {
-  //   printf("block_residual[0] = %f in block %d \n", block_residual[0], blockIdx.y * gridDim.x + blockIdx.x);
-  // }
-  // __syncthreads();
-  
-  // if (global_i == 0 && global_j == 0) {
-  //   printf("block_residuals in block %d: \n", blockIdx.y * gridDim.x + blockIdx.x);
-  //   for (int k = 0; k < blockDim.x * blockDim.y; k++) {
-  //     printf("%f, ", block_residual[k]);
-  //   }
-  //   __syncthreads();
-  // }
 	
-	float residual_add = (float) (4.0 * xw[BlockI(i,j)] - xw[BlockI(i-1,j)] - xw[BlockI(i+1,j)] - xw[BlockI(i,j-1)] - xw[BlockI(i,j+1)] - b[I(i,j)]);
-	residual_add *= residual_add; // ^2
-
-	// Accumulate residual in block 
-	atomicAdd(&block_residual[0], residual_add);
-  __syncthreads(); 
-  
-//  if (global_i == 0 && global_j == 0) {
-//    for (int k = 0; k < blockDim.x * blockDim.y; k++) {
-//      printf("block residual = %f ,", block_residual[k]);
-//    }
-//  }
-
-
-	// send residual back to global memory:
-	if (i == 0 && j == 0) atomicAdd(residual, block_residual[0]);
-
-
-	// if (global_i == 0 && global_j ==0) printf("res: %10\n", residual);
+	// Load cells that border the block 
+	if (i == 0) {
+	  if(global_i == 0) xw[BlockI(i-1,j)] = 0.0;
+	  else xw[BlockI(i-1,j)]=(b[I(global_i-1,global_j)]+xr[I(global_i-2,global_j)]+xr[I(global_i,global_j)]
+	    +xr[I(global_i-1,global_j-1)]+xr[I(global_i-1,global_j+1)])/4.0;
+	}
+	else if(i == blockDim.x - 1){
+	  if(global_i == n - 1) xw[BlockI(i+1,j)] = 0.0;
+	  else xw[BlockI(i+1,j)]=(b[I(global_i+1,global_j)]+xr[I(global_i,global_j)]+xr[I(global_i+2,global_j)]
+	  +xr[I(global_i+1,global_j-1)]+xr[I(global_i+1,global_j+1)])/4.0;
+	}
+	if (j == 0) {
+	  if (global_j == 0) xw[BlockI(i,j-1)] = 0.0;
+		else xw[BlockI(i,j-1)]=(b[I(global_i,global_j-1)]+xr[I(global_i-1,global_j-1)]+xr[I(global_i+1,global_j-1)]
+	    +xr[I(global_i,global_j-2)]+xr[I(global_i,global_j)])/4.0;
+	}
+	else if (j == blockDim.y - 1){
+	  if (global_j == n - 1) xw[BlockI(i,j+1)] = 0.0;
+	  else xw[BlockI(i,j+1)]=(b[I(global_i,global_j+1)]+xr[I(global_i-1,global_j+1)]+xr[I(global_i+1,global_j+1)]
+	  +xr[I(global_i,global_j)]+xr[I(global_i,global_j+2)])/4.0;
+	}
 	__syncthreads();
-	
+	  
 	///////////////////
 	// swap buffers: //
 	///////////////////
 	xr[I(global_i, global_j)] = xw[BlockI(i,j)];
 
+}
+
+
+__global__ void Calc_Residual(double *xr, const double *b, float* residual) {
+
+	int global_i = blockIdx.x * blockDim.x + threadIdx.x;
+    int global_j = blockIdx.y * blockDim.y + threadIdx.y;
+	int i = threadIdx.x;
+	int j = threadIdx.y;
+	int local_thread_id = threadIdx.y * blockDim.x+ threadIdx.x;
+
+	// Set global residual to zero and set all shared memory to 0:
+	if (i == 0 && j == 0) *residual = 0.f;
+
+	extern __shared__ float block_residual[];
+	block_residual[local_thread_id] = 0.f;
+	__syncthreads();
+
+
+	// Calculate additions to block residual:
+	float residual_add = (float) (4.0 * xr[I(global_i,global_j)] - xr[I(global_i-1,global_j)] - xr[I(global_i+1,global_j)] - 
+			xr[I(global_i,global_j-1)] - xr[I(global_i,global_j+1)] - b[I(global_i,global_j)]);
+
+	residual_add *= residual_add; // ^2
+
+	// add to block residual
+	atomicAdd(&block_residual[0], residual_add);
+	__syncthreads();
+	
+	// send back to global memory:
+	if (i == 0 && j == 0) atomicAdd(residual, block_residual[0]);
 
 }
 
@@ -423,31 +403,33 @@ void Test_GPU_Solver() {
   int thread_y = blockDimX;
   int block_x = ceil((double)n / (double)thread_x);
   int block_y = ceil((double)n / (double)thread_y);
-
+	
   int xw_size= (thread_x + 2 * g) * (thread_y + 2 * g);
   int residual_arr_size = thread_x * thread_y;
-
   
   int max_num = 1e5;     ////max iteration number
   int iter_num = 0;
 
-  float prev_residual = 0.f;
   do{
 
     residual_host = 0.f;
-    GPU_Solver<<<dim3(block_x, block_y), dim3(thread_x, thread_y), xw_size * sizeof(double) +
-              residual_arr_size * sizeof(float)>>>(x_gpu, b_gpu, residual_gpu, xw_size);
+
+    GPU_Solver<<<dim3(block_x, block_y), dim3(thread_x, thread_y), xw_size * sizeof(double)>>>
+		(x_gpu, b_gpu);
 
     cudaDeviceSynchronize();
+	Calc_Residual<<<dim3(block_x, block_y), dim3(thread_x, thread_y), residual_arr_size * sizeof(float)>>>
+		(x_gpu, b_gpu, residual_gpu);
+
     cudaMemcpy(&residual_host, residual_gpu, sizeof(float), cudaMemcpyDeviceToHost);
-    float temp = residual_host;
-    residual_host -= prev_residual;
-    prev_residual = temp;
-    //cout << "res: " << residual_host << endl;
+    cout << "res: " << residual_host << endl; // disable this print before submission
     iter_num += 1;
 
-  } while ((double) residual_host > tolerance && iter_num < max_num);
 
+  } while (residual_host > tolerance && iter_num < max_num);
+	
+
+  // disable print before submission
   cout << "GPU Jacobi solver converges in " << iter_num
        << " iterations, with residual " << residual_host << endl;
 
