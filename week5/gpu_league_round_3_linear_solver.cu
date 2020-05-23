@@ -4,6 +4,12 @@
 //////////////////////////////////////////////////////////////////////////
 #include <fstream>
 #include <iostream>
+#include <thrust/tuple.h>
+#include <thrust/iterator/zip_iterator.h>
+#include <thrust/transform.h>
+#include <thrust/device_vector.h>
+#include <thrust/inner_product.h>
+#include <thrust/functional.h>
 using namespace std;
 
 //////////////////////////////////////////////////////////////////////////
@@ -34,7 +40,7 @@ const int g = 1;                                ////padding size
 const int s = (n + 2 * g) * (n + 2 * g);        ////array size
 #define I(i, j) (i + g) * (n + 2 * g) + (j + g) ////2D coordinate -> array index
 #define B(i, j) i < 0 || i >= n || j < 0 || j >= n ////check boundary
-const bool verbose = true; ////set false to turn off print for x and residual
+const bool verbose = false; ////set false to turn off print for x and residual
 const double tolerance = 1e-3; ////tolerance for the iterative solver
 
 const int blockDimX = 8;
@@ -71,8 +77,8 @@ void Jacobi_Solver(double *x, const double *b) {
       }
     }
 
-//    if (verbose)
-//      cout << "res: " << residual << endl;
+   if (verbose)
+     cout << "res: " << residual << endl;
 
     ////swap the buffers
     double *swap = xr;
@@ -87,85 +93,6 @@ void Jacobi_Solver(double *x, const double *b) {
        << " iterations, with residual " << residual << endl;
 
   delete[] buf;
-}
-
-void Gauss_Seidel_Solver(double *x, const double *b) {
-  int iter_num = 0;      ////iteration number
-  int max_num = 1e5;     ////max iteration number
-  double residual = 0.0; ////residual
-
-  do {
-    ////update x values using the Gauss-Seidel iterative scheme
-    for (int i = 0; i < n; i++) {
-      for (int j = 0; j < n; j++) {
-        x[I(i, j)] = (b[I(i, j)] + x[I(i - 1, j)] + x[I(i + 1, j)] +
-                      x[I(i, j - 1)] + x[I(i, j + 1)]) /
-                     4.0;
-      }
-    }
-
-    ////calculate residual
-    residual = 0.0;
-    for (int i = 0; i < n; i++) {
-      for (int j = 0; j < n; j++) {
-        residual += pow(4.0 * x[I(i, j)] - x[I(i - 1, j)] - x[I(i + 1, j)] -
-                            x[I(i, j - 1)] - x[I(i, j + 1)] - b[I(i, j)],
-                        2);
-      }
-    }
-
-    if (verbose)
-      cout << "res: " << residual << endl;
-    iter_num++;
-  } while (residual > tolerance && iter_num < max_num);
-
-  cout << "Gauss-Seidel solver converges in " << iter_num
-       << " iterations, with residual " << residual << endl;
-}
-
-void Red_Black_Gauss_Seidel_Solver(double *x, const double *b) {
-  int iter_num = 0;      ////iteration number
-  int max_num = 1e5;     ////max iteration number
-  double residual = 0.0; ////residual
-
-  do {
-    ////red G-S
-    for (int i = 0; i < n; i++) {
-      for (int j = 0; j < n; j++) {
-        if ((i + j) % 2 == 0) ////Look at this line!
-          x[I(i, j)] = (b[I(i, j)] + x[I(i - 1, j)] + x[I(i + 1, j)] +
-                        x[I(i, j - 1)] + x[I(i, j + 1)]) /
-                       4.0;
-      }
-    }
-
-    ////black G-S
-    for (int i = 0; i < n; i++) {
-      for (int j = 0; j < n; j++) {
-        if ((i + j) % 2 == 1) ////And this line!
-          x[I(i, j)] = (b[I(i, j)] + x[I(i - 1, j)] + x[I(i + 1, j)] +
-                        x[I(i, j - 1)] + x[I(i, j + 1)]) /
-                       4.0;
-      }
-    }
-
-    ////calculate residual
-    residual = 0.0;
-    for (int i = 0; i < n; i++) {
-      for (int j = 0; j < n; j++) {
-        residual += pow(4.0 * x[I(i, j)] - x[I(i - 1, j)] - x[I(i + 1, j)] -
-                            x[I(i, j - 1)] - x[I(i, j + 1)] - b[I(i, j)],
-                        2);
-      }
-    }
-
-    if (verbose)
-      cout << "res: " << residual << endl;
-    iter_num++;
-  } while (residual > tolerance && iter_num < max_num);
-
-  cout << "Red-Black Gauss-Seidel solver converges in " << iter_num
-       << " iterations, with residual " << residual << endl;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -205,54 +132,6 @@ void Test_CPU_Solvers() {
     }
   }
   cout << "\n\n";
-
-//  //////////////////////////////////////////////////////////////////////////
-//  ////test Gauss-Seidel
-//  memset(x, 0x0000, sizeof(double) * s);
-//  for (int i = -1; i <= n; i++) {
-//    for (int j = -1; j <= n; j++) {
-//      if (B(i, j))
-//        x[I(i, j)] = (double)(i * i + j * j); ////set boundary condition for x
-//    }
-//  }
-//
-//  Gauss_Seidel_Solver(x, b);
-//
-//  if (verbose) {
-//    cout << "\n\nx for Gauss-Seidel:\n";
-//    for (int i = 0; i < n; i++) {
-//      for (int j = 0; j < n; j++) {
-//        cout << x[I(i, j)] << ", ";
-//      }
-//      cout << std::endl;
-//    }
-//  }
-//  cout << "\n\n";
-//
-//  //////////////////////////////////////////////////////////////////////////
-//  ////test Red-Black Gauss-Seidel
-//  memset(x, 0x0000, sizeof(double) * s);
-//  for (int i = -1; i <= n; i++) {
-//    for (int j = -1; j <= n; j++) {
-//      if (B(i, j))
-//        x[I(i, j)] = (double)(i * i + j * j); ////set boundary condition for x
-//    }
-//  }
-//
-//  Red_Black_Gauss_Seidel_Solver(x, b);
-//
-//  if (verbose) {
-//    cout << "\n\nx for Red-Black Gauss-Seidel:\n";
-//    for (int i = 0; i < n; i++) {
-//      for (int j = 0; j < n; j++) {
-//        cout << x[I(i, j)] << ", ";
-//      }
-//      cout << std::endl;
-//    }
-//  }
-//  cout << "\n\n";
-//
-  //////////////////////////////////////////////////////////////////////////
 
   delete[] x;
   delete[] b;
@@ -342,6 +221,19 @@ __global__ void Calc_Residual(double *xr, const double *b, float* residual) {
 
 }
 
+// struct residual_thrust_subtract {
+//   __host__ __device__ double operator()(double x1, double x2)
+//   {
+//     return x1-x2; 
+//   }
+// }
+
+// struct residual_thrust_power { 
+//   __host__ __device__ double operator()(double pre_square){ 
+//     return pre_square*pre_square; 
+//   }
+// }
+
 ////Your implementations end here
 //////////////////////////////////////////////////////////////////////////
 
@@ -383,6 +275,11 @@ void Test_GPU_Solver() {
   cudaMemcpy(b_gpu, b, s * sizeof(double), cudaMemcpyHostToDevice);
   cudaMemcpy(residual_gpu, &residual_host, sizeof(float), cudaMemcpyHostToDevice);
 
+  // Establish Thrust Vectors 
+  thrust::device_ptr<double> dev_x_ptr = thrust::device_pointer_cast(x_gpu); 
+  thrust::device_ptr<double> dev_b_ptr = thrust::device_pointer_cast(b_gpu); 
+  thrust::device_ptr<float> dev_r_ptr = thrust::device_pointer_cast(residual_gpu); 
+
   cudaEvent_t start, end;
   cudaEventCreate(&start);
   cudaEventCreate(&end);
@@ -418,11 +315,19 @@ void Test_GPU_Solver() {
 		(x_gpu, b_gpu);
 
     cudaDeviceSynchronize();
-	Calc_Residual<<<dim3(block_x, block_y), dim3(thread_x, thread_y), residual_arr_size * sizeof(float)>>>
-		(x_gpu, b_gpu, residual_gpu);
 
-    cudaMemcpy(&residual_host, residual_gpu, sizeof(float), cudaMemcpyDeviceToHost);
-    cout << "res: " << residual_host << endl; // disable this print before submission
+	Calc_Residual<<<dim3(block_x, block_y), dim3(thread_x, thread_y), residual_arr_size * sizeof(float)>>>
+  	(x_gpu, b_gpu, residual_gpu);
+  
+  // Find residual using thrust: 
+
+
+  residual_host = dev_r_ptr[0]; 
+
+    if (verbose){
+      cout << "res: " << residual_host << endl; // disable this print before submission
+    }
+    
     iter_num += 1;
 
 
@@ -470,7 +375,9 @@ void Test_GPU_Solver() {
   out << "T1: " << gpu_time << endl;
 
   //////////////////////////////////////////////////////////////////////////
-
+  cudaFree(x_gpu); 
+  cudaFree(b_gpu); 
+  cudaFree(residual_gpu); 
   delete[] x;
   delete[] b;
 }
