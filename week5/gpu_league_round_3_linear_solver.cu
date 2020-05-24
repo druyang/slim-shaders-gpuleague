@@ -35,7 +35,7 @@ std::string author_2 = "Andrw_Yang";
 /// implementations
 //////////////////////////////////////////////////////////////////////////
 
-const int n = 16; ////grid size, we will change this value to up to 128 to test your code
+const int n = 128; ////grid size, we will change this value to up to 128 to test your code
 const int g = 1;                                ////padding size
 const int s = (n + 2 * g) * (n + 2 * g);        ////array size
 #define I(i, j) (i + g) * (n + 2 * g) + (j + g) ////2D coordinate -> array index
@@ -228,11 +228,32 @@ __global__ void Calc_Residual(double *xr, const double *b, float* residual) {
 //   }
 // }
 
-// struct residual_thrust_power { 
-//   __host__ __device__ double operator()(double pre_square){ 
-//     return pre_square*pre_square; 
-//   }
-// }
+// Residual helper functions
+
+struct residual_thrust_power { 
+  __host__ __device__ double operator()(double pre_square, int i){ 
+    return pre_square*pre_square; 
+  }
+}
+
+// Thrust but with lambda 
+
+struct residual_thrust {
+  double *xw, *b; 
+  residual_thrust(double *xw, double *b): xw(_xw), b(_b) {}; 
+
+  __host__ __device__ 
+  double operator()(size_t idx)
+  {
+    int j = idx/(n + 2 * g); 
+    int i = idx - (j * (n + 2 * g)); 
+
+    return (float) (4.0 * xw[idx] - xw[I(i-1,j)]- xw[I(i+1,j)] - xw[I(i,j-1)] - xw[I(i,j+1)]- b[idx])]);
+
+  }
+}
+
+// Reduce Residual 
 
 ////Your implementations end here
 //////////////////////////////////////////////////////////////////////////
@@ -320,9 +341,15 @@ void Test_GPU_Solver() {
   	(x_gpu, b_gpu, residual_gpu);
   
   // Find residual using thrust: 
+  thrust::transform(thrust::counting_iterator<int>(0), thrust::counting_iterator<int>(s*s), dev_r_ptr.begin(), \
+  residual_thrust(thrust::raw_pointer_cast(x_gpu), thrust::raw_pointer_cast(b_gpu)));
 
+  thrust::constant_iterator<int> c(s*s);
+  thrust::transform(dev_r_ptr.begin(), dev_r_ptr.end(), c, dev_r_ptr.begin(),residual_thrust_power());
 
-  residual_host = dev_r_ptr[0]; 
+  // reduce residual 
+  residual_host = thrust::reduce(dev_r_ptr.begin(), dev_r_ptr.end(), (float) 0.0f, thrust::plus<float>()); 
+
 
     if (verbose){
       cout << "res: " << residual_host << endl; // disable this print before submission
