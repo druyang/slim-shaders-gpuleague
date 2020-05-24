@@ -29,7 +29,7 @@ std::string author_2 = "Andrw_Yang";
 /// implementations
 //////////////////////////////////////////////////////////////////////////
 
-const int n = 16; ////grid size, we will change this value to up to 128 to test your code
+const int n = 128; ////grid size, we will change this value to up to 128 to test your code
 const int g = 1;                                ////padding size
 const int s = (n + 2 * g) * (n + 2 * g);        ////array size
 #define I(i, j) (i + g) * (n + 2 * g) + (j + g) ////2D coordinate -> array index
@@ -422,7 +422,7 @@ void Test_GPU_Solver() {
 		(x_gpu, b_gpu, residual_gpu);
 
     cudaMemcpy(&residual_host, residual_gpu, sizeof(float), cudaMemcpyDeviceToHost);
-    cout << "res: " << residual_host << endl; // disable this print before submission
+    // cout << "res: " << residual_host << endl; // disable this print before submission
     iter_num += 1;
 
 
@@ -430,8 +430,8 @@ void Test_GPU_Solver() {
 	
 
   // disable print before submission
-  cout << "GPU Jacobi solver converges in " << iter_num
-       << " iterations, with residual " << residual_host << endl;
+//  cout << "GPU Jacobi solver converges in " << iter_num
+//       << " iterations, with residual " << residual_host << endl;
 
 
   cudaEventRecord(end);
@@ -490,7 +490,7 @@ int main()
 		return 0;
 	}
 
-	Test_CPU_Solvers();	////You may comment out this line to run your GPU solver only
+	// Test_CPU_Solvers();	////You may comment out this line to run your GPU solver only
 	Test_GPU_Solver();	////Test function for your own GPU implementation
 
 	return 0;
