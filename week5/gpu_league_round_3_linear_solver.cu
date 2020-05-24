@@ -234,24 +234,21 @@ struct residual_thrust_power {
   __host__ __device__ double operator()(double pre_square, int i){ 
     return pre_square*pre_square; 
   }
-}
+};
 
 // Thrust but with lambda 
 
 struct residual_thrust {
   double *xw, *b; 
-  residual_thrust(double *xw, double *b): xw(_xw), b(_b) {}; 
+  residual_thrust(double *_xw, double *_b): xw(_xw), b(_b) {}; 
 
-  __host__ __device__ 
-  double operator()(size_t idx)
+  __host__ __device__ double operator()(size_t idx)
   {
     int j = idx/(n + 2 * g); 
     int i = idx - (j * (n + 2 * g)); 
-
     return (float) (4.0 * xw[idx] - xw[I(i-1,j)]- xw[I(i+1,j)] - xw[I(i,j-1)] - xw[I(i,j+1)]- b[idx])]);
-
   }
-}
+};
 
 // Reduce Residual 
 
